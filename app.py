@@ -226,6 +226,13 @@ with tab1:
                 confidence_pct = result['confidence_score'] * 100
                 classification = result['classification']
 
+                # Format debug tokens for display
+                debug_tokens = result.get('debug_tokens', [])
+                debug_tokens_str = "\n".join([
+                    f"- `{token}`: {logprob:.3f}"
+                    for token, logprob in debug_tokens
+                ])
+
                 assistant_msg = f"""**Model:** {detect_model_display}
 
 **🔬 Forensic Classification**
@@ -246,6 +253,19 @@ with tab1:
                 st.session_state.messages.append(
                     {"role": "assistant", "content": assistant_msg}
                 )
+
+                # Add debug tokens in a collapsible message
+                if debug_tokens:
+                    debug_msg = f"""**🔍 Debug: Top Tokens from Model**
+
+{debug_tokens_str}
+
+*Looking for: REAL/Real/real or FAKE/Fake/fake variants*
+*If these tokens aren't in the list, the model isn't following the prompt correctly.*
+"""
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": debug_msg}
+                    )
 
             except Exception as e:
                 error_msg = f"**Error during forensic analysis:** {str(e)}\n\nFalling back to standard analysis..."

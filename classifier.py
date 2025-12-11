@@ -269,8 +269,11 @@ Output ONLY one of these two words: "REAL" or "FAKE"."""
             token_output = logprobs_content.token
 
             # Initialize scores in log space
-            score_real = -100.0  # Very low probability
-            score_fake = -100.0
+            score_real = None
+            score_fake = None
+
+            # Collect all tokens for debugging
+            all_tokens_debug = [(obj.token, obj.logprob) for obj in top_logprobs]
 
             # Scan top logprobs for REAL/FAKE tokens
             for logprob_obj in top_logprobs:
@@ -278,18 +281,35 @@ Output ONLY one of these two words: "REAL" or "FAKE"."""
                 logprob = logprob_obj.logprob
 
                 # Check for REAL token variations
-                if token in self.REAL_TOKENS and score_real == -100.0:
+                if token in self.REAL_TOKENS and score_real is None:
                     score_real = logprob
                 # Check for FAKE token variations
-                elif token in self.FAKE_TOKENS and score_fake == -100.0:
+                elif token in self.FAKE_TOKENS and score_fake is None:
                     score_fake = logprob
 
+            # If we didn't find both tokens, try to infer from actual output token
+            if score_real is None or score_fake is None:
+                # Use actual output token's logprob if it matches
+                actual_logprob = logprobs_content.logprob
+
+                if token_output in self.REAL_TOKENS:
+                    score_real = actual_logprob
+                elif token_output in self.FAKE_TOKENS:
+                    score_fake = actual_logprob
+
             # Validate we found at least one token
-            if score_real == -100.0 and score_fake == -100.0:
+            if score_real is None and score_fake is None:
                 raise ValueError(
                     f"Could not find REAL or FAKE tokens in top_logprobs. "
-                    f"Found tokens: {[obj.token for obj in top_logprobs]}"
+                    f"Token output: '{token_output}', "
+                    f"Top tokens: {all_tokens_debug}"
                 )
+
+            # If only one found, assign very low probability to the other
+            if score_real is None:
+                score_real = score_fake - 10.0  # exp(-10) ≈ 0.000045 relative probability
+            if score_fake is None:
+                score_fake = score_real - 10.0
 
             # Convert to linear space
             p_real = math.exp(score_real)
@@ -315,7 +335,8 @@ Output ONLY one of these two words: "REAL" or "FAKE"."""
                     "fake": p_fake
                 },
                 "classification": classification,
-                "token_output": token_output
+                "token_output": token_output,
+                "debug_tokens": all_tokens_debug  # For debugging token issues
             }
 
         except AttributeError as e:
