@@ -6,6 +6,7 @@ import tempfile
 import cv2
 import pandas as pd
 import os
+import math
 from datetime import datetime
 
 from shared_functions import (
@@ -16,8 +17,9 @@ from shared_functions import (
     display_confusion_matrix,
 )
 from config import PROMPTS, SYSTEM_PROMPT, MODEL_CONFIGS
-from forensics import generate_both
+from forensics import generate_both, ArtifactGenerator
 from classifier import create_classifier_from_config
+from detector import OSINTDetector
 
 st.set_page_config(page_title="Deepfake Detector", layout="wide", page_icon="🕵️‍♂️")
 
@@ -31,7 +33,13 @@ if "eval_results" not in st.session_state:
 if "forensic_artifacts" not in st.session_state:
     st.session_state.forensic_artifacts = None  # Stores (ela_bytes, fft_bytes)
 if "forensic_result" not in st.session_state:
-    st.session_state.forensic_result = None  # Stores classification result
+    st.session_state.forensic_result = None  # Stores classification result (legacy)
+if "osint_context" not in st.session_state:
+    st.session_state.osint_context = "auto"  # auto/military/disaster/propaganda
+if "debug_mode" not in st.session_state:
+    st.session_state.debug_mode = False
+if "osint_result" not in st.session_state:
+    st.session_state.osint_result = None  # Stores OSINTDetector result
 
 # build model selection mapping
 model_key_to_display = {
@@ -53,6 +61,29 @@ with tab1:
         index=0,
     )
     detect_model_key = display_to_model_key[detect_model_display]
+
+    # OSINT Context Selector
+    osint_context = st.selectbox(
+        "OSINT Context",
+        options=["auto", "military", "disaster", "propaganda"],
+        format_func=lambda x: {
+            "auto": "Auto-Detect",
+            "military": "Military (Uniforms/Parades/Formations)",
+            "disaster": "Disaster/HADR (Flood/Rubble/Combat)",
+            "propaganda": "Propaganda/Showcase (Studio/News)"
+        }[x],
+        index=0,
+        help="Select scene type for context-adaptive forensic thresholds"
+    )
+    st.session_state.osint_context = osint_context
+
+    # Debug Mode Toggle
+    debug_mode = st.checkbox(
+        "🔍 Enable Debug Mode",
+        value=st.session_state.debug_mode,
+        help="Show detailed forensic reports, VLM reasoning, and raw logprobs"
+    )
+    st.session_state.debug_mode = debug_mode
 
     left_col, right_col = st.columns([1, 2], gap="large")
 
@@ -144,34 +175,28 @@ with tab1:
                         )
                         st.caption("🔍 **AI signature:** Grid/cross patterns\n\n✓ **Real signature:** Chaotic starburst")
 
-                    # Show detailed forensic result if available
-                    if st.session_state.forensic_result is not None:
-                        result = st.session_state.forensic_result
+                    # Show detailed OSINT result if available
+                    if st.session_state.osint_result is not None:
+                        result = st.session_state.osint_result
                         st.markdown("---")
-                        st.markdown("### Forensic Indicators")
+                        st.markdown("### OSINT Detection Result")
 
-                        confidence = result['confidence_score']
-                        is_ai = result['is_ai']
+                        tier = result['tier']
+                        confidence = result['confidence']
 
-                        # Visual confidence bar
-                        st.progress(
-                            confidence,
-                            text=f"AI Confidence: {confidence*100:.1f}%"
-                        )
-
-                        # Interpretation
-                        if is_ai:
-                            st.markdown("**🚨 Classification: AI-Generated**")
-                            if confidence > 0.8:
-                                st.warning("⚠️ High confidence - Strong forensic evidence of AI generation")
-                            else:
-                                st.info("ℹ️ Moderate confidence - Some forensic indicators present")
+                        # Visual confidence bar with color coding
+                        if tier == "Deepfake":
+                            st.error(f"🚨 **{tier}** - Confidence: {confidence*100:.1f}%")
+                        elif tier == "Suspicious":
+                            st.warning(f"⚠️ **{tier}** - Confidence: {confidence*100:.1f}%")
                         else:
-                            st.markdown("**✅ Classification: Authentic**")
-                            if confidence < 0.2:
-                                st.success("✓ High confidence - Strong forensic evidence of authenticity")
-                            else:
-                                st.info("ℹ️ Moderate confidence - Weak AI indicators")
+                            st.success(f"✅ **{tier}** - Confidence: {confidence*100:.1f}%")
+
+                        st.progress(confidence, text=f"P(Fake): {confidence*100:.1f}%")
+
+                        # Metadata auto-fail indicator
+                        if result.get('metadata_auto_fail', False):
+                            st.error("⚠️ AI tool signature detected in metadata - Instant rejection")
 
         else:
             st.info("Upload image/video to begin analysis.")
@@ -199,79 +224,162 @@ with tab1:
         analysis_image = st.session_state.get("media")
 
     if new_upload and analysis_image:
-        with st.spinner("🔬 Generating forensic artifacts..."):
+        with st.spinner("🔬 Running OSINT detection pipeline..."):
             try:
-                # Generate ELA and FFT forensic maps
-                ela_bytes, fft_bytes = generate_both(analysis_image)
+                # Convert PIL Image to bytes
+                img_bytes = io.BytesIO()
+                analysis_image.save(img_bytes, format='PNG')
+                img_bytes = img_bytes.getvalue()
+
+                # Create OSINT detector
+                config = MODEL_CONFIGS[detect_model_key]
+                detector = OSINTDetector(
+                    base_url=config["base_url"],
+                    model_name=config["model_name"],
+                    api_key=config.get("api_key", "dummy"),
+                    context=st.session_state.osint_context
+                )
+
+                # Run detection with debug mode
+                result = detector.detect(
+                    img_bytes,
+                    debug=st.session_state.debug_mode
+                )
+
+                # Store result
+                st.session_state.osint_result = result
+
+                # Generate artifacts for display
+                ag = ArtifactGenerator()
+                ela_bytes = ag.generate_ela(img_bytes)
+                fft_bytes, _ = ag.generate_fft_preprocessed(img_bytes)
                 st.session_state.forensic_artifacts = (ela_bytes, fft_bytes)
 
-                # Create classifier
-                classifier = create_classifier_from_config(
-                    detect_model_key,
-                    threshold=0.5  # Default threshold, can be made configurable
-                )
-
-                # Classify using forensic artifacts
-                ela_image = Image.open(io.BytesIO(ela_bytes))
-                fft_image = Image.open(io.BytesIO(fft_bytes))
-
-                result = classifier.classify_pil_image(
-                    analysis_image,
-                    ela_image,
-                    fft_image
-                )
-                st.session_state.forensic_result = result
-
                 # Create assistant message
-                confidence_pct = result['confidence_score'] * 100
-                classification = result['classification']
+                tier = result['tier']
+                confidence_pct = result['confidence'] * 100
+                reasoning = result['reasoning']
 
-                # Format debug tokens for display
-                debug_tokens = result.get('debug_tokens', [])
-                debug_tokens_str = "\n".join([
-                    f"- `{token}`: {logprob:.3f}"
-                    for token, logprob in debug_tokens
-                ])
+                # Determine color coding
+                if tier == "Deepfake":
+                    tier_emoji = "🚨"
+                elif tier == "Suspicious":
+                    tier_emoji = "⚠️"
+                else:
+                    tier_emoji = "✅"
 
                 assistant_msg = f"""**Model:** {detect_model_display}
+**OSINT Context:** {osint_context.capitalize()}
 
-**🔬 Forensic Classification**
-
-**Result:** {classification}
+**{tier_emoji} Classification: {tier}**
 **Confidence:** {confidence_pct:.1f}%
-**Threshold:** {result['threshold']} (AI if score > threshold)
 
-**Raw Logprobs:**
-- P(FAKE): {result['raw_logits']['fake']:.3f} → {result['raw_probs']['fake']:.4f}
-- P(REAL): {result['raw_logits']['real']:.3f} → {result['raw_probs']['real']:.4f}
+**VLM Reasoning:**
+{reasoning}
 
-**Token Output:** `{result['token_output']}`
+**Forensic Report:**
+```
+{result['forensic_report']}
+```
 
 💡 *View forensic artifacts below the image panel*
 """
 
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": assistant_msg}
-                )
+                # Add debug information if enabled
+                if st.session_state.debug_mode and 'debug' in result:
+                    debug = result['debug']
 
-                # Add debug tokens in a collapsible message
-                if debug_tokens:
-                    debug_msg = f"""**🔍 Debug: Top Tokens from Model**
+                    assistant_msg += f"""
 
-{debug_tokens_str}
+---
+### 🔬 Debug: Forensic Lab Report (Raw Data)
 
-*Looking for: A (Real) or B (Fake)*
-*If these tokens aren't in the list, the model isn't following the MCQ prompt correctly.*
+**EXIF Metadata:**
+```
+{chr(10).join([f"{k}: {v}" for k, v in debug['exif_data'].items()]) if debug['exif_data'] else '(No EXIF data found)'}
+```
+
+**ELA Analysis:**
+- Variance Score: {debug['ela_variance']:.2f}
+- Threshold: <2.0 (AI indicator)
+
+**FFT Analysis:**
+- Pattern Type: {debug['fft_pattern']}
+- Peaks Detected: {debug['fft_peaks']}
+
+**OSINT Context Applied:** {debug['context_applied'].capitalize()}
+
+---
+### 🧠 VLM Analysis Output
+
+**Full Reasoning:**
+{reasoning}
+
+**API Metadata:**
+- Model: {detect_model_display}
+- Request 1 Latency: {debug['request_1_latency']:.2f}s
+- Request 2 Latency: {debug['request_2_latency']:.2f}s (⚡ {((1 - debug['request_2_latency']/max(debug['request_1_latency'], 0.01)) * 100):.1f}% faster via KV-cache)
+- Request 1 Tokens: ~{debug['request_1_tokens']}
+- Request 2 Tokens: ~{debug['request_2_tokens']}
+
+---
+### 📊 Logprobs & Verdict Extraction
+
+**Top K=5 Tokens:**
 """
-                    st.session_state.messages.append(
-                        {"role": "assistant", "content": debug_msg}
-                    )
+                    # Format top-k logprobs as table
+                    for i, (token, logprob) in enumerate(debug['top_k_logprobs'][:5], 1):
+                        prob = math.exp(logprob)
+                        interpretation = ""
+                        if token in detector.REAL_TOKENS:
+                            interpretation = "(REAL)"
+                        elif token in detector.FAKE_TOKENS:
+                            interpretation = "(FAKE)"
+
+                        assistant_msg += f"\n{i}. `{repr(token)}`: {logprob:.3f} → {prob:.4f} {interpretation}"
+
+                    assistant_msg += f"""
+
+**Softmax Normalized:**
+- P(Fake) = {result['confidence']:.4f} ({confidence_pct:.1f}%)
+- P(Real) = {(1 - result['confidence']):.4f} ({(1 - result['confidence'])*100:.1f}%)
+
+**Three-Tier Classification:**
+- Tier: **{tier}**
+- Threshold Check:
+  * P_fake < 0.50? {'YES → Authentic' if result['confidence'] < 0.50 else 'NO'}
+  * P_fake ≥ 0.90? {'YES → Deepfake' if result['confidence'] >= 0.90 else 'NO'}
+
+**Verdict Token:** `{result['verdict_token']}`
+
+---
+### ⚙️ System Prompt
+
+```
+{debug['system_prompt']}
+```
+
+---
+### ⏱️ Performance Metrics
+
+**Stage-by-Stage Timing:**
+- Stage 0 (Metadata): {debug.get('stage_0_time', 0):.3f}s
+- Stage 1 (Forensics): {debug.get('stage_1_time', 0):.3f}s
+- Stage 2 (VLM Analysis): {debug['request_1_latency']:.2f}s
+- Stage 3 (Verdict): {debug['request_2_latency']:.2f}s
+
+**Total Pipeline:** {debug['total_pipeline_time']:.2f}s
+
+**KV-Cache Hit:** {'✅ YES' if debug.get('kv_cache_hit', False) else '❌ NO'}
+"""
+
+                st.session_state.messages.append({"role": "assistant", "content": assistant_msg})
+                st.rerun()
 
             except Exception as e:
-                error_msg = f"**Error during forensic analysis:** {str(e)}\n\nFalling back to standard analysis..."
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": error_msg}
-                )
+                error_msg = f"❌ **Error during OSINT detection:**\n```\n{str(e)}\n```"
+                st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                st.error(f"Detection failed: {str(e)}")
 
                 # Fallback to old method
                 result = analyze_single_image(
