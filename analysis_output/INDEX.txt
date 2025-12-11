@@ -1,0 +1,173 @@
+================================================================================
+DEEPFAKE DETECTION EVALUATION - OUTPUT INDEX
+================================================================================
+Generated: December 8, 2025
+Location: analysis_output/
+
+This directory contains all analysis outputs from the deepfake detection
+evaluation of 3 Vision-Language Models on 72 HADR disaster images.
+
+================================================================================
+START HERE
+================================================================================
+
+New to this analysis? Read these first (in order):
+
+1. EXECUTIVE_SUMMARY.md        - High-level findings and recommendations
+2. README.md                    - Guide to all files and how to use them
+3. COMPREHENSIVE_REPORT.md      - Full technical analysis
+
+================================================================================
+DOCUMENTS (Text/Markdown)
+================================================================================
+
+EXECUTIVE_SUMMARY.md (7 KB)
+├─ Quick overview of key findings
+├─ Model rankings and recommendations
+├─ What it means in practice
+└─ Next steps
+
+COMPREHENSIVE_REPORT.md (19 KB)
+├─ Complete technical analysis
+├─ Methodology with prompts used
+├─ Dataset breakdown and statistics
+├─ Detailed model-by-model analysis
+├─ AIG vs AIM comparison
+├─ Confusion matrix definitions
+├─ Recommendations for improvements
+└─ All formulas and appendices
+
+README.md (6 KB)
+├─ File-by-file guide
+├─ How to use visualizations
+├─ Suggested slide deck structures
+└─ Quick reference lookup
+
+dataset_summary.txt (606 bytes)
+├─ Dataset statistics
+├─ Category counts
+├─ Scenario distribution
+└─ Time of day split
+
+INDEX.txt (this file)
+└─ Master directory listing
+
+================================================================================
+DATA (Structured)
+================================================================================
+
+detailed_results.csv (567 bytes)
+├─ All metrics in CSV format
+├─ Columns: Model, Accuracy, Precision, Recall, F1, TP/TN/FP/FN,
+│           AIG metrics, AIM metrics, Real specificity
+└─ Import into Excel, Python, R, etc. for custom analysis
+
+================================================================================
+VISUALIZATIONS (High-Res PNG - Ready for Presentations)
+================================================================================
+
+1_model_comparison.png (444 KB) [4771 x 3541 px]
+├─ 4-panel overview showing:
+│  ├─ Overall metrics (Accuracy, Precision, Recall, F1)
+│  ├─ AIG vs AIM detection comparison
+│  ├─ Best model confusion matrix
+│  └─ Performance by category
+└─ USE FOR: Overview slides, model comparison, executive summaries
+
+2_confusion_matrices.png (199 KB) [5290 x 1480 px]
+├─ Side-by-side confusion matrices for all 3 models
+├─ Shows counts and percentages
+└─ USE FOR: Detailed performance analysis, explaining trade-offs
+
+3_dataset_composition.png (239 KB) [5163 x 1481 px]
+├─ 3-panel dataset breakdown:
+│  ├─ Category pie chart (AIG/AIM/REAL)
+│  ├─ Scenario distribution
+│  └─ Day vs night balance
+└─ USE FOR: Methodology slides, dataset description
+
+4_performance_table.png (147 KB)
+├─ Professional formatted summary table
+├─ All models with key metrics
+└─ USE FOR: Results summary, quick reference slide
+
+5_detection_rates.png (168 KB)
+├─ Bar chart comparing AIG/AIM/Real detection
+├─ Clearly shows AIM is harder to detect
+└─ USE FOR: Main findings slide, highlighting key discovery
+
+6_confusion_definitions.png (622 KB)
+├─ Educational explanation of TP/TN/FP/FN
+├─ Includes real-world context and examples
+└─ USE FOR: Background slides, explaining metrics to non-technical audiences
+
+================================================================================
+KEY STATISTICS (Quick Reference)
+================================================================================
+
+Dataset:
+  • Total images: 72
+  • Real: 24 (33.3%)
+  • AI-Generated (AIG): 24 (33.3%)
+  • AI-Manipulated (AIM): 24 (33.3%)
+  • Runs per image: 5
+  • Day/Night split: 50/50
+
+Models Evaluated:
+  • InternVL 2.5 8B
+  • InternVL 3.5 8B
+  • MiniCPM-V 4.5
+
+Results:
+  • Best Model: InternVL 3.5 8B (48.61% accuracy)
+  • Best Precision: InternVL 2.5 & MiniCPM (100%, but low recall)
+  • Best Recall: InternVL 3.5 (41.67%)
+  • Best F1: InternVL 3.5 (51.95%)
+
+Key Finding:
+  • AI-Manipulated (AIM) images are ~8% harder to detect than
+    fully AI-Generated (AIG) images
+
+================================================================================
+REGENERATING ANALYSIS
+================================================================================
+
+To regenerate with updated data:
+
+  cd "/home/otb-02/Desktop/deepfake detection"
+  python3 generate_report.py
+
+This will overwrite all files in analysis_output/
+
+================================================================================
+FILE SIZES
+================================================================================
+
+Total: ~1.9 MB
+  Visualizations: ~1.8 MB (6 PNG files @ 300 DPI)
+  Documents: ~100 KB (5 text/markdown files)
+  Data: ~1 KB (1 CSV file)
+
+All files are presentation-ready and print-quality.
+
+================================================================================
+RECOMMENDED CITATION
+================================================================================
+
+Deepfake Detection Evaluation Report
+Vision-Language Model Performance Analysis for HADR Scenarios
+Generated: December 8, 2025
+Models: InternVL 2.5 8B, InternVL 3.5 8B, MiniCPM-V 4.5
+Dataset: 72 images (24 REAL, 24 AIG, 24 AIM)
+Evaluation: 5-run consensus voting per image
+
+================================================================================
+CONTACT & QUESTIONS
+================================================================================
+
+For questions about methodology: See COMPREHENSIVE_REPORT.md Section 1
+For questions about metrics: See COMPREHENSIVE_REPORT.md Appendix A
+For questions about dataset: See dataset_summary.txt
+For questions about visualizations: See README.md
+
+================================================================================

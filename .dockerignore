@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+
+# Data files (can be mounted as volumes instead)
+# Uncomment these if you want to exclude large files from the image
+# results/*.xlsx
+# testing_files/
+# misc/
+
+# Analysis outputs
+analysis_output.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore

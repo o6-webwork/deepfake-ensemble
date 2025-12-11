@@ -1,0 +1,47 @@
+services:
+  # Streamlit Application
+  deepfake-detector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: deepfake-detector-app
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount data directories (optional - for persistence)
+      - ./results:/app/results
+      - ./testing_files:/app/testing_files
+      - ./misc:/app/misc
+      - ./analysis_output:/app/analysis_output
+    environment:
+      # Streamlit configuration
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    restart: unless-stopped
+    networks:
+      - deepfake-network
+    # Optional: Set resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+networks:
+  deepfake-network:
+    driver: bridge
+
+# Note: This docker-compose only runs the Streamlit app.
+# The vLLM model servers (InternVL, MiniCPM, Qwen3) are expected to be
+# running separately and accessible at the URLs defined in config.py:
+# - http://100.64.0.1:8000/v1/ (InternVL 2.5)
+# - http://localhost:1234/v1/ (InternVL 3.5)
+# - http://100.64.0.3:8001/v1/ (MiniCPM-V)
+# - http://100.64.0.3:8006/v1/ (Qwen3 VL)
+#
+# If you need to modify these URLs for your Docker network, update config.py

@@ -1,0 +1,150 @@
+Task: Build a VLM-based Forensic Image Scanner
+
+Language: Python 3.10+
+
+Dependencies
+
+opencv-python-headless
+
+numpy
+
+openai (or google-generativeai)
+
+scikit-image (optional, for advanced ELA, but OpenCV is sufficient)
+
+Module 1: forensics.py
+
+Create a class ArtifactGenerator with static methods:
+
+generate_ela(image_path, quality=90) -> bytes:
+
+Logic:
+
+Load original image.
+
+Compress/save to a temporary memory buffer as JPEG (quality=90).
+
+Reload that temporary JPEG.
+
+Compute the absolute difference: |Original - Compressed|.
+
+Scale the difference intensity: diff_image * 15 (Gamma correction for visibility).
+
+Return the processed image bytes.
+
+generate_fft(image_path) -> bytes:
+
+Logic:
+
+Convert image to Grayscale.
+
+Convert to float32.
+
+Perform DFT (Discrete Fourier Transform) using cv2.dft.
+
+Shift the zero-frequency component to the center (np.fft.fftshift).
+
+Compute Magnitude Spectrum: 20 * log(magnitude).
+
+Normalize result to 0-255 range for visualization.
+
+Return the processed image bytes.
+
+Module 2: classifier.py
+
+Create a function classify_image(original_bytes, ela_bytes, fft_bytes) -> dict:
+
+1. Payload Construction
+
+Model: gpt-4o (or equivalent high-fidelity VLM).
+
+Settings:
+
+temperature: 0.0 (Deterministic).
+
+max_tokens: 1 (Force binary classification).
+
+logprobs: True (OpenAI) or response_logprobs=True (Gemini).
+
+top_logprobs: 5.
+
+2. The System Prompt
+
+Embed this exact text into the API call:
+
+System Instruction:
+You are a forensic signal processing unit. You do not speak. You do not explain. You analyze the three input images:
+
+Original Photograph
+
+ELA (Error Level Analysis) Map
+
+FFT (Fast Fourier Transform) Spectrum
+
+Analysis Logic:
+
+If FFT shows a "Grid", "Starfield", or "Cross" pattern -> FAKE.
+
+If ELA shows uniform "Rainbow" static across the whole image -> FAKE.
+
+If Original shows physical inconsistencies (pupils, hands) -> FAKE.
+
+If FFT is a chaotic "Starburst" AND ELA is uniform dark/edge-noise -> REAL.
+
+Output Command:
+Classify the image content immediately.
+Output ONLY one of these two words: "REAL" or "FAKE".
+
+3. Logit Parsing & Probability Calculation
+
+The API will return a single token (e.g., "FAKE") and a list of top_logprobs.
+
+Algorithm:
+
+Initialize scores: score_real = -100.0, score_fake = -100.0 (Log space).
+
+Scan top_logprobs:
+
+Look for tokens: "REAL", "Real", "real" -> Assign max logprob to score_real.
+
+Look for tokens: "FAKE", "Fake", "fake" -> Assign max logprob to score_fake.
+
+Convert to Linear Space:
+
+p_real = exp(score_real)
+
+p_fake = exp(score_fake)
+
+Softmax Normalization:
+
+confidence_fake = p_fake / (p_fake + p_real)
+
+Determine Verdict:
+
+final_label = "AI-Generated" if confidence_fake > 0.5 else "Authentic".
+
+4. Return Output
+
+Return a dictionary:
+
+{
+  "is_ai": bool,
+  "confidence_score": float,  // The softmax score (0.0 to 1.0)
+  "raw_logits": {
+      "real": float,
+      "fake": float
+  }
+}
+
+
+Implementation Workflow (Main Script)
+
+Load Image.
+
+Run ArtifactGenerator.generate_ela() -> Get ELA Buffer.
+
+Run ArtifactGenerator.generate_fft() -> Get FFT Buffer.
+
+Call classifier.classify_image(original, ela, fft).
+
+Print JSON result.

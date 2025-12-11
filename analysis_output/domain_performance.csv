@@ -1,0 +1,13 @@
+Model,Domain,Accuracy,AIG Detected,AIM Detected,Real Correct
+InternVL 2.5 8B,HADR,0.375,0/8,1/8,8/8
+InternVL 2.5 8B,MilitaryConflict,0.3333333333333333,0/8,0/8,8/8
+InternVL 2.5 8B,MilitaryShowcase,0.3333333333333333,0/8,0/8,8/8
+InternVL 3.5 8B,HADR,0.3333333333333333,0/8,2/8,6/8
+InternVL 3.5 8B,MilitaryConflict,0.5833333333333334,5/8,4/8,5/8
+InternVL 3.5 8B,MilitaryShowcase,0.5416666666666666,6/8,3/8,4/8
+MiniCPM-V 4.5,HADR,0.375,1/8,0/8,8/8
+MiniCPM-V 4.5,MilitaryConflict,0.4166666666666667,2/8,0/8,8/8
+MiniCPM-V 4.5,MilitaryShowcase,0.4583333333333333,1/8,2/8,8/8
+Qwen3 VL 32B,HADR,0.4583333333333333,1/8,2/8,8/8
+Qwen3 VL 32B,MilitaryConflict,0.5833333333333334,5/8,3/8,6/8
+Qwen3 VL 32B,MilitaryShowcase,0.625,4/8,3/8,8/8

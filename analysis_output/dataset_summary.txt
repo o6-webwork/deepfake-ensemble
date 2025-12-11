@@ -1,0 +1,39 @@
+================================================================================
+DATASET SUMMARY
+================================================================================
+
+Dataset Composition:
+  Total Images: 72
+  Real Images: 24
+  AI-Generated (AIG): 24
+  AI-Manipulated (AIM): 24
+  Models Evaluated: 4
+  Runs per Image: 5
+
+Category Distribution:
+  AIG: 24 (33.3%)
+  AIM: 24 (33.3%)
+  REAL: 24 (33.3%)
+
+Domain Distribution:
+  HADR: 24 (33.3%)
+  MilitaryConflict: 24 (33.3%)
+  MilitaryShowcase: 24 (33.3%)
+
+Scenario Distribution:
+  AIRSTRIKE: 6
+  CONVOY: 6
+  EARTHQUAKE: 6
+  FIRE: 6
+  FLOOD: 6
+  GROUNDBATTLE: 6
+  LIVEFIRE: 6
+  MARCHING: 6
+  NAVIGATION: 6
+  PARADE: 6
+  STORM: 6
+  URBANDAMAGE: 6
+
+Time of Day Distribution:
+  DAY: 36
+  NIGHT: 36
