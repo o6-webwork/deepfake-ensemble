@@ -18,7 +18,8 @@ import cv2
 import numpy as np
 from PIL import Image
 import io
-from typing import Union, Tuple
+import exifread
+from typing import Union, Tuple, Dict, Optional
 
 
 class ArtifactGenerator:
@@ -224,6 +225,210 @@ class ArtifactGenerator:
             raise RuntimeError("Failed to encode FFT spectrum as PNG")
 
         return png_bytes.tobytes()
+
+    @staticmethod
+    def extract_metadata(
+        image_input: Union[str, bytes, Image.Image]
+    ) -> Dict[str, str]:
+        """
+        Extract EXIF metadata from image.
+
+        Args:
+            image_input: Input image as file path, bytes, or PIL Image
+
+        Returns:
+            Dictionary mapping EXIF tag names to values
+            Empty dict if no EXIF data found
+
+        Example:
+            >>> metadata = ArtifactGenerator.extract_metadata('photo.jpg')
+            >>> print(metadata.get('Image Make'))  # Camera manufacturer
+            'Canon'
+        """
+        try:
+            # Convert to file-like object for exifread
+            if isinstance(image_input, str):
+                with open(image_input, 'rb') as f:
+                    tags = exifread.process_file(f, details=False)
+            elif isinstance(image_input, bytes):
+                tags = exifread.process_file(io.BytesIO(image_input), details=False)
+            elif isinstance(image_input, Image.Image):
+                # Convert PIL Image to bytes
+                img_bytes = io.BytesIO()
+                # Save with original format if available, otherwise use PNG
+                img_format = image_input.format if image_input.format else 'PNG'
+                image_input.save(img_bytes, format=img_format)
+                img_bytes.seek(0)
+                tags = exifread.process_file(img_bytes, details=False)
+            else:
+                raise TypeError(
+                    "image_input must be str (path), bytes, or PIL.Image"
+                )
+
+            # Convert IfdTag objects to strings
+            metadata = {
+                str(tag): str(value)
+                for tag, value in tags.items()
+                if not tag.startswith('Thumbnail')  # Skip thumbnail tags
+            }
+
+            return metadata
+
+        except Exception as e:
+            # Return empty dict on error (image might not have EXIF)
+            return {}
+
+    @staticmethod
+    def compute_ela_variance(ela_bytes: bytes) -> float:
+        """
+        Compute variance score from ELA map.
+
+        Low variance (<2.0) indicates uniform compression (AI indicator).
+        High variance (≥2.0) indicates inconsistent compression (manipulation indicator).
+
+        Args:
+            ela_bytes: PNG-encoded ELA map bytes from generate_ela()
+
+        Returns:
+            Standard deviation of pixel values across all channels
+
+        Example:
+            >>> ela_bytes = ArtifactGenerator.generate_ela('photo.jpg')
+            >>> variance = ArtifactGenerator.compute_ela_variance(ela_bytes)
+            >>> if variance < 2.0:
+            ...     print("Uniform compression (AI indicator)")
+        """
+        # Decode ELA image from PNG bytes
+        nparr = np.frombuffer(ela_bytes, np.uint8)
+        ela_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        if ela_img is None:
+            raise ValueError("Failed to decode ELA image bytes")
+
+        # Compute standard deviation across all channels
+        # Convert to float for accurate std calculation
+        variance = np.std(ela_img.astype('float'))
+
+        return float(variance)
+
+    @staticmethod
+    def generate_fft_preprocessed(
+        image_input: Union[str, Image.Image, np.ndarray],
+        target_size: int = 512,
+        apply_highpass: bool = True
+    ) -> Tuple[bytes, Dict[str, any]]:
+        """
+        Generate FFT with preprocessing for improved pattern detection.
+
+        Preprocessing steps:
+        1. Resize to standardized size (default: 512x512)
+        2. Apply high-pass filter to remove DC bias
+        3. Compute FFT with enhanced pattern visibility
+
+        Args:
+            image_input: Input image as file path, PIL Image, or numpy array
+            target_size: Resize to this dimension (default: 512)
+            apply_highpass: Whether to apply high-pass filter (default: True)
+
+        Returns:
+            Tuple of (fft_bytes, metrics_dict):
+                - fft_bytes: PNG-encoded FFT spectrum
+                - metrics_dict: {
+                    'pattern_type': str,  # 'Grid', 'Cross', 'Starfield', 'Chaotic'
+                    'peaks_detected': int,
+                    'peak_threshold': float
+                  }
+
+        Example:
+            >>> fft_bytes, metrics = ArtifactGenerator.generate_fft_preprocessed('photo.jpg')
+            >>> print(f"Pattern: {metrics['pattern_type']}")
+        """
+        # Load and convert to grayscale (same as original generate_fft)
+        if isinstance(image_input, str):
+            gray = cv2.imread(image_input, cv2.IMREAD_GRAYSCALE)
+            if gray is None:
+                raise ValueError(f"Could not load image from path: {image_input}")
+        elif isinstance(image_input, Image.Image):
+            if image_input.mode == 'L':
+                gray = np.array(image_input)
+            else:
+                gray = cv2.cvtColor(np.array(image_input), cv2.COLOR_RGB2GRAY)
+        elif isinstance(image_input, np.ndarray):
+            if len(image_input.shape) == 2:
+                gray = image_input.copy()
+            elif len(image_input.shape) == 3:
+                gray = cv2.cvtColor(image_input, cv2.COLOR_BGR2GRAY)
+            else:
+                raise ValueError(f"Invalid image array shape: {image_input.shape}")
+        else:
+            raise TypeError(
+                "image_input must be str (path), PIL.Image, or numpy.ndarray"
+            )
+
+        # Step 1: Resize to standardized size
+        gray = cv2.resize(gray, (target_size, target_size), interpolation=cv2.INTER_LINEAR)
+
+        # Step 2: Apply high-pass filter (optional)
+        if apply_highpass:
+            # Gaussian blur to get low-frequency components
+            low_freq = cv2.GaussianBlur(gray, (21, 21), 0)
+            # Subtract to get high-frequency components
+            gray = cv2.subtract(gray, low_freq)
+            # Normalize back to 0-255 range
+            gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+
+        # Convert to float32 for DFT
+        gray_float = np.float32(gray)
+
+        # Compute DFT
+        dft = cv2.dft(gray_float, flags=cv2.DFT_COMPLEX_OUTPUT)
+        dft_shift = np.fft.fftshift(dft)
+
+        # Compute magnitude spectrum
+        magnitude = cv2.magnitude(dft_shift[:, :, 0], dft_shift[:, :, 1])
+
+        # Apply log transform
+        magnitude_log = 20 * np.log(magnitude + 1)
+
+        # Normalize to 0-255
+        magnitude_normalized = cv2.normalize(
+            magnitude_log, None, 0, 255, cv2.NORM_MINMAX
+        )
+        fft_image = np.uint8(magnitude_normalized)
+
+        # Analyze patterns (simple peak detection)
+        # Mask center DC component (very bright spot in middle)
+        center = target_size // 2
+        mask_radius = 10
+        masked = fft_image.copy()
+        cv2.circle(masked, (center, center), mask_radius, 0, -1)
+
+        # Detect peaks (pixels above threshold)
+        peak_threshold = 200  # Base threshold (can be adjusted dynamically)
+        peaks = np.sum(masked > peak_threshold)
+
+        # Simple pattern classification based on peak distribution
+        if peaks > 100:
+            pattern_type = "Grid"  # Many peaks = grid pattern
+        elif peaks > 50:
+            pattern_type = "Starfield"  # Medium peaks = starfield
+        elif peaks > 20:
+            pattern_type = "Cross"  # Few peaks = cross pattern
+        else:
+            pattern_type = "Chaotic"  # Very few peaks = natural chaos
+
+        # Encode as PNG
+        success, png_bytes = cv2.imencode('.png', fft_image)
+        if not success:
+            raise RuntimeError("Failed to encode FFT spectrum as PNG")
+
+        metrics = {
+            'pattern_type': pattern_type,
+            'peaks_detected': int(peaks),
+            'peak_threshold': float(peak_threshold)
+        }
+
+        return png_bytes.tobytes(), metrics
 
     @staticmethod
     def generate_both(
