@@ -350,13 +350,15 @@ class ArtifactGenerator:
         CRITICAL FIXES (Dec 12, 2025 - Forensic Expert Review):
         1. NEVER resize - use center crop + padding to preserve pixel-level artifacts
         2. Mask DC component + central axes to remove social media "JPEG Cross"
+        3. 5-Sigma peak detection to distinguish AI grid stars from natural grain
 
         Preprocessing steps:
         1. Center crop (if ≥512×512) or pad (if <512×512) - NO RESIZING
         2. Apply high-pass filter to remove DC bias from natural lighting
         3. Compute FFT magnitude spectrum
         4. Mask DC component (5px radius) + central axes (±1px) BEFORE normalization
-        5. Normalize and classify pattern
+        5. Normalize to 0-255 range
+        6. Apply 5-Sigma adaptive thresholding for entropy-aware peak detection
 
         IMPORTANT: Linear interpolation acts as a low-pass filter, destroying
         high-frequency AI artifacts (checkerboard patterns from Transpose Convolutions).
@@ -365,6 +367,13 @@ class ArtifactGenerator:
         Social Media Fix: Twitter/Telegram images with rectangular borders create
         massive white crosses in FFT (100× stronger than AI artifacts). We mask
         the central axes to prevent VLM fixation on this artifact.
+
+        5-Sigma Peak Detection:
+        - AI Grid Stars: BRIGHT peaks that survive 5σ threshold (sparse, high-energy)
+        - Real Grain: NOISY but DIMMER pixels filtered out by 5σ (diffuse, low-energy)
+        - High Peak Count (>2000): Overwhelmingly textured real image with natural grain
+        - Low Peak Count (<20): Clean natural image without artifacts
+        - Medium Peak Count (20-2000): Suspected AI with high-frequency grid stars
 
         Args:
             image_input: Input image as file path, bytes, PIL Image, or numpy array
@@ -375,14 +384,17 @@ class ArtifactGenerator:
             Tuple of (fft_bytes, metrics_dict):
                 - fft_bytes: PNG-encoded FFT spectrum
                 - metrics_dict: {
-                    'pattern_type': str,  # 'Grid', 'Starfield', 'Chaotic'
+                    'pattern_type': str,  # 'Natural/Chaotic (High Entropy)',
+                                          # 'High Freq Artifacts (Suspected AI)',
+                                          # 'Natural/Clean'
                     'peaks_detected': int,
-                    'peak_threshold': float
+                    'peak_threshold': float  # Mean + 5*StdDev
                   }
 
         Example:
             >>> fft_bytes, metrics = ArtifactGenerator.generate_fft_preprocessed('photo.jpg')
-            >>> print(f"Pattern: {metrics['pattern_type']}")  # Grid/Starfield/Chaotic
+            >>> print(f"Pattern: {metrics['pattern_type']}")
+            >>> # Output: "High Freq Artifacts (Suspected AI)" or "Natural/Chaotic (High Entropy)"
         """
         # Load and convert to grayscale (same as original generate_fft)
         if isinstance(image_input, str):
@@ -419,18 +431,26 @@ class ArtifactGenerator:
         h, w = gray.shape
         crop_size = target_size
 
-        if h >= crop_size and w >= crop_size:
-            # Image is large enough - center crop
-            start_y = (h - crop_size) // 2
-            start_x = (w - crop_size) // 2
-            gray = gray[start_y:start_y + crop_size, start_x:start_x + crop_size]
-        else:
-            # Image is too small - pad with reflection to avoid introducing artifacts
-            pad_y = max(0, crop_size - h)
-            pad_x = max(0, crop_size - w)
-            gray = cv2.copyMakeBorder(
-                gray, 0, pad_y, 0, pad_x, cv2.BORDER_REFLECT
+        # Calculate crop coordinates with bounds checking
+        start_y = max(0, (h - crop_size) // 2)
+        start_x = max(0, (w - crop_size) // 2)
+        end_y = min(h, start_y + crop_size)
+        end_x = min(w, start_x + crop_size)
+
+        # Extract crop
+        gray_crop = gray[start_y:end_y, start_x:end_x]
+
+        # Reflection pad if image is smaller than target
+        h_c, w_c = gray_crop.shape
+        if h_c < crop_size or w_c < crop_size:
+            gray_crop = cv2.copyMakeBorder(
+                gray_crop,
+                0, crop_size - h_c,
+                0, crop_size - w_c,
+                cv2.BORDER_REFLECT
             )
+
+        gray = gray_crop
 
         # Step 2: Apply high-pass filter (optional)
         if apply_highpass:
@@ -475,25 +495,29 @@ class ArtifactGenerator:
         )
         fft_image = np.uint8(magnitude_normalized)
 
-        # Analyze patterns (simple peak detection)
-        # Use slightly larger mask for peak detection to avoid edge effects
-        center = target_size // 2
-        mask_radius = 10
-        masked = fft_image.copy()
-        cv2.circle(masked, (center, center), mask_radius, 0, -1)
+        # Analyze patterns with 5-Sigma peak detection (REFINED - Dec 12, 2025)
+        # Logic: AI Grid Stars are BRIGHT (survive 5σ threshold)
+        #        Real Grain is NOISY but DIMMER (filtered by 5σ)
+        #        High peak count (>2000) indicates overwhelmingly textured real image
 
-        # Detect peaks (pixels above threshold)
-        peak_threshold = 200  # Base threshold (can be adjusted dynamically)
-        peaks = np.sum(masked > peak_threshold)
+        # Calculate mean and standard deviation for adaptive thresholding
+        mean_val = np.mean(fft_image)
+        std_val = np.std(fft_image)
 
-        # Simple pattern classification based on peak distribution
-        # NOTE: "Cross" pattern removed - now masked as social media artifact
-        if peaks > 100:
-            pattern_type = "Grid"  # Many peaks = grid pattern (GAN artifact)
-        elif peaks > 50:
-            pattern_type = "Starfield"  # Medium peaks = starfield (diffusion artifact)
+        # 5-Sigma threshold filters out high-entropy grain while preserving AI grid stars
+        peak_threshold = mean_val + (5 * std_val)
+        peaks = np.sum(fft_image > peak_threshold)
+
+        # Entropy-aware pattern classification
+        if peaks > 2000:
+            # Overwhelmingly textured - natural high entropy (real photo with grain/noise)
+            pattern_type = "Natural/Chaotic (High Entropy)"
+        elif peaks > 20:
+            # Sparse bright peaks surviving 5σ - high frequency artifacts (AI signature)
+            pattern_type = "High Freq Artifacts (Suspected AI)"
         else:
-            pattern_type = "Chaotic"  # Few peaks = natural chaos (authentic photo)
+            # Very few bright peaks - clean natural image
+            pattern_type = "Natural/Clean"
 
         # Encode as PNG
         success, png_bytes = cv2.imencode('.png', fft_image)

@@ -384,11 +384,12 @@ Answer with ONLY the single letter A or B."""
         base = """You are a Senior OSINT Image Analyst specializing in military, disaster, and propaganda imagery verification."""
 
         case_a = """
-CASE A: Military Context (Uniforms/Parades/Formations)
-- Filter: IGNORE MACRO-scale repetitive patterns (e.g., lines of soldiers, rows of tanks).
+CASE A: Uniforms / Parades / Formations (Military Context)
+- Filter: IGNORE MACRO-scale repetitive patterns (e.g., lines of soldiers, rows of tanks, windows on buildings) visible in the original image.
   * These are organic, imperfect alignments at LOW frequency
-- Focus: FLAG MICRO-scale perfect pixel-grid anomalies or symmetric star patterns in noise floor.
-  * These are pixel-perfect, HIGH frequency GAN artifacts (often visible in sky/background)
+- Focus: Strictly FLAG MICRO-scale, perfect pixel-grid anomalies or symmetric 'star patterns' in the FFT noise floor.
+  * These indicate GAN synthesis, NOT formation marching
+  * These are pixel-perfect, HIGH frequency artifacts (often visible in sky/background)
 - Also check: Clone stamp errors (duplicate faces, floating weapons).
 - Threshold: FFT peak threshold increased by +20%."""
 
