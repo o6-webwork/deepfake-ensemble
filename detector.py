@@ -61,7 +61,12 @@ class OSINTDetector:
             context: "auto", "military", "disaster", or "propaganda"
             watermark_mode: "ignore" (treat as news logos) or "analyze" (flag AI watermarks)
         """
-        self.client = OpenAI(base_url=base_url, api_key=api_key)
+        self.client = OpenAI(
+            base_url=base_url,
+            api_key=api_key,
+            timeout=180.0,  # 3 minute default timeout for all requests
+            max_retries=0  # No retries to fail fast
+        )
         self.model_name = model_name
         self.context = context
         self.watermark_mode = watermark_mode
@@ -376,8 +381,7 @@ OSINT Context: {self.context.capitalize()}
                 model=self.model_name,
                 messages=messages,
                 temperature=0.0,
-                max_tokens=500,  # Increased from 300 for longer analysis instructions
-                timeout=120.0  # 2 minute timeout to prevent hanging
+                max_tokens=500  # Increased from 300 for longer analysis instructions
             )
             req1_time = time.time() - req1_start
 
@@ -424,8 +428,7 @@ Answer with ONLY the single letter A or B."""
                 temperature=0.0,
                 max_tokens=1,
                 logprobs=True,
-                top_logprobs=5,
-                timeout=60.0  # 1 minute timeout for verdict extraction
+                top_logprobs=5
             )
             req2_time = time.time() - req2_start
 
