@@ -48,7 +48,8 @@ class OSINTDetector:
         base_url: str,
         model_name: str,
         api_key: str = "dummy",
-        context: str = "auto"
+        context: str = "auto",
+        watermark_mode: str = "ignore"
     ):
         """
         Initialize OSINT detector.
@@ -58,10 +59,12 @@ class OSINTDetector:
             model_name: Model identifier
             api_key: API key (default: "dummy" for vLLM)
             context: "auto", "military", "disaster", or "propaganda"
+            watermark_mode: "ignore" (treat as news logos) or "analyze" (flag AI watermarks)
         """
         self.client = OpenAI(base_url=base_url, api_key=api_key)
         self.model_name = model_name
         self.context = context
+        self.watermark_mode = watermark_mode
         self.artifact_gen = ArtifactGenerator()
 
     def detect(
@@ -297,12 +300,33 @@ OSINT Context: {self.context.capitalize()}
                     {
                         "type": "text",
                         "text": (
-                            "NOTE: You may see a distinct BLACK cross (+) in the center of the FFT. "
-                            "This is a masking artifact from the forensic tool to remove social media "
-                            "border noise. IGNORE IT.\n\n"
-                            "Analyze the above forensic evidence. "
-                            "Provide your reasoning for whether this image is "
-                            "authentic or AI-generated."
+                            "--- FORENSIC INTERPRETATION GUIDE ---\n"
+                            "FFT Pattern Types:\n"
+                            "- 'Natural/Chaotic (High Entropy)' = Real photo with grain/noise (>2000 peaks at 5-sigma)\n"
+                            "- 'High Freq Artifacts (Suspected AI)' = Sparse bright GAN grid stars (20-2000 peaks)\n"
+                            "- 'Natural/Clean' = Clean authentic image (<20 peaks)\n\n"
+                            "ELA Variance:\n"
+                            "- Low variance (<2.0) is INCONCLUSIVE on social media (WhatsApp/Facebook re-compression)\n"
+                            "- Real WhatsApp photos often have variance ~0.5\n"
+                            "- Focus on LOCAL inconsistencies (bright patch on dark), NOT global uniformity\n\n"
+                            "FFT Black Cross: You may see a BLACK cross (+) in the center - this is a masking "
+                            "artifact to remove social media border noise. IGNORE IT.\n\n"
+                            "--- ANALYSIS INSTRUCTIONS ---\n"
+                            "Perform a comprehensive analysis:\n\n"
+                            "1. **Physical/Visual Analysis** (PRIMARY - Analyze the ORIGINAL IMAGE):\n"
+                            "   - Anatomy: Check for extra/missing fingers, wrong proportions, facial anomalies\n"
+                            "   - Physics: Impossible shadows, lighting inconsistencies, gravity violations\n"
+                            "   - Composition: Text rendering errors, blurry backgrounds, object coherence\n"
+                            "   - Textures: Unnatural smoothness (plastic skin), repetitive patterns\n\n"
+                            "2. **Forensic Correlation**:\n"
+                            "   - Does the ELA show local inconsistencies suggesting manipulation?\n"
+                            "   - Does the FFT show bright grid stars indicating GAN synthesis?\n"
+                            "   - Apply the appropriate OSINT protocol for this scene type\n\n"
+                            "3. **Metadata Check**:\n"
+                            "   - Any AI tool signatures detected?\n"
+                            "   - Professional camera vs smartphone vs no metadata?\n\n"
+                            f"4. **Watermark Analysis**: {self._get_watermark_instruction()}\n\n"
+                            "Provide your reasoning for whether this image is authentic or AI-generated."
                         )
                     }
                 ]
@@ -490,6 +514,21 @@ CASE C: Propaganda/Showcase Context (Studio/News)
             return "Suspicious"
         else:
             return "Authentic"
+
+    def _get_watermark_instruction(self) -> str:
+        """Get watermark analysis instruction based on mode."""
+        if self.watermark_mode == "analyze":
+            return (
+                "Actively scan for known AI watermarks (e.g., 'Sora', 'NanoBanana', "
+                "colored strips, AI tool logos). If found, flag as 'Suspected AI Watermark'. "
+                "CAUTION: Distinguish these from standard news/TV watermarks (CNN, BBC, Reuters)."
+            )
+        else:  # ignore mode (default)
+            return (
+                "Ignore all watermarks, text overlays, or corner logos. "
+                "Treat them as potential OSINT source attributions (e.g., news agency logos) "
+                "and NOT as evidence of AI generation."
+            )
 
     def _get_threshold_adjustments(self) -> Dict[str, str]:
         """Get context-specific threshold adjustments for debug display."""
