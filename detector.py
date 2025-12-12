@@ -297,6 +297,9 @@ OSINT Context: {self.context.capitalize()}
                     {
                         "type": "text",
                         "text": (
+                            "NOTE: You may see a distinct BLACK cross (+) in the center of the FFT. "
+                            "This is a masking artifact from the forensic tool to remove social media "
+                            "border noise. IGNORE IT.\n\n"
                             "Analyze the above forensic evidence. "
                             "Provide your reasoning for whether this image is "
                             "authentic or AI-generated."
