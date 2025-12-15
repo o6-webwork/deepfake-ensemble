@@ -64,7 +64,7 @@ class OSINTDetector:
         self.client = OpenAI(
             base_url=base_url,
             api_key=api_key,
-            timeout=180.0,  # 3 minute default timeout for all requests
+            timeout=60.0,  # 1 minute timeout for faster failure in production
             max_retries=0  # No retries to fail fast
         )
         self.model_name = model_name
