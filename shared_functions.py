@@ -4,74 +4,104 @@ import io, base64, pandas as pd
 import streamlit as st
 
 from config import MODEL_CONFIGS, get_client_and_name
+from detector import OSINTDetector
 
 
-def extract_score_from_analysis(analysis: str) -> float:
-    """Extract the numeric score from the analysis string (e.g., 'Score: 2/10')."""
-    import re
+def extract_verdict_from_detector_output(result: Dict) -> Dict:
+    """
+    Extract evaluation-compatible verdict from OSINTDetector output.
 
-    match = re.search(
-        r"(?:score|final score)\s*:?\s*\**\s*(\d+(?:\.\d+)?)",
-        analysis,
-        re.IGNORECASE,
-    )
-    if match:
-        return float(match.group(1))
+    Args:
+        result: Output from detector.detect() with keys:
+            - tier: str ("Authentic" / "Suspicious" / "Deepfake")
+            - confidence: float (0.0-1.0, probability of being fake)
+            - reasoning: str (Stage 2 VLM analysis)
+            - verdict: dict with token, confidence, raw_logits
 
-    match_slash = re.search(r"(\d+(?:\.\d+)?)/\d+", analysis)
-    if match_slash:
-        return float(match_slash.group(1))
+    Returns:
+        {
+            "classification": str,  # "Real" or "AI Generated" for metrics
+            "analysis": str,       # Full reasoning text
+            "confidence": float,   # 0.0-1.0 confidence in the classification
+            "tier": str,          # "Authentic" / "Suspicious" / "Deepfake"
+            "verdict_token": str  # "A" or "B" from MCQ
+        }
+    """
+    # Extract verdict information
+    confidence_fake = result.get('confidence', 0.5)
+    tier = result.get('tier', 'Suspicious')
+    reasoning = result.get('reasoning', 'No analysis available')
+    verdict_info = result.get('verdict', {})
+    verdict_token = verdict_info.get('token', 'B' if confidence_fake >= 0.5 else 'A')
 
-    return 0.0
+    # Determine classification (binary for metrics calculation)
+    # Use tier-based logic for consistency:
+    # - Authentic (confidence_fake < 0.50) → "Real"
+    # - Suspicious/Deepfake (confidence_fake >= 0.50) → "AI Generated"
+    if tier == "Authentic":
+        classification = "Real"
+    else:  # Suspicious or Deepfake
+        classification = "AI Generated"
+
+    return {
+        "classification": classification,
+        "analysis": reasoning,
+        "confidence": confidence_fake,
+        "tier": tier,
+        "verdict_token": verdict_token
+    }
 
 
 def analyze_single_image(
     image: Image.Image,
-    prompts: List[str],
-    system_prompt: str,
-    model_key: str,
+    model_config: Dict,
+    context: str = "auto",
+    watermark_mode: str = "ignore",
+    send_forensics: bool = True
 ) -> Dict:
-    """Analyze a single image with the selected model and return classification + score."""
-    client, model_name = get_client_and_name(model_key)
+    """
+    Analyze a single image using the OSINT deepfake detector.
 
+    Args:
+        image: PIL Image to analyze
+        model_config: Model configuration dict from MODEL_CONFIGS
+        context: OSINT context ("auto", "military", "disaster", "propaganda")
+        watermark_mode: "ignore" or "analyze"
+        send_forensics: Whether to include ELA/FFT forensic artifacts
+
+    Returns:
+        {
+            "classification": str,  # "Real" or "AI Generated"
+            "analysis": str,       # Full reasoning
+            "confidence": float,   # 0.0-1.0
+            "tier": str,          # "Authentic" / "Suspicious" / "Deepfake"
+            "verdict_token": str  # "A" or "B"
+        }
+    """
+    # Convert PIL Image to bytes
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
-    img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    image_part = {
-        "type": "image_url",
-        "image_url": {"url": f"data:image/png;base64,{img_b64}"},
-    }
+    image_bytes = buffered.getvalue()
 
-    all_responses = []
-    overall_score = 0.0
+    # Initialize detector with model config
+    detector = OSINTDetector(
+        base_url=model_config.get('base_url', ''),
+        model_name=model_config.get('model_name', ''),
+        api_key=model_config.get('api_key', 'dummy'),
+        context=context,
+        watermark_mode=watermark_mode,
+        provider=model_config.get('provider', 'vllm')
+    )
 
-    for prompt in prompts:
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": prompt}, image_part],
-                },
-            ],
-            temperature=0.0,  # Deterministic for forensic analysis
-            max_tokens=512,
-        )
+    # Run detection
+    result = detector.detect(
+        image_bytes=image_bytes,
+        debug=False,
+        send_forensics=send_forensics
+    )
 
-        analysis = response.choices[0].message.content
-        all_responses.append(analysis)
-
-        score = extract_score_from_analysis(analysis)
-        overall_score = max(overall_score, score)
-
-    classification = "AI Generated" if overall_score > 4 else "Real"
-
-    return {
-        "classification": classification,
-        "analysis": "\n".join(all_responses),
-        "score": overall_score,
-    }
+    # Convert to evaluation format
+    return extract_verdict_from_detector_output(result)
 
 
 def load_ground_truth(csv_file) -> pd.DataFrame:

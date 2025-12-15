@@ -535,13 +535,33 @@ with tab2:
     )
     gt_file = st.file_uploader("Upload ground truth CSV", type=["csv"])
 
-    num_runs = st.selectbox(
-        "How many times would you like to process each image?",
-        options=[1, 3, 5, 7, 9],
-        index=2,
-    )
+    # Evaluation settings
+    col1, col2, col3 = st.columns(3)
 
-    # choose which models to evaluate (default: all)
+    with col1:
+        eval_context = st.selectbox(
+            "OSINT Context",
+            options=["auto", "military", "disaster", "propaganda"],
+            index=0,
+            help="Context-specific detection protocols (CASE A/B/C)"
+        )
+
+    with col2:
+        send_forensics = st.checkbox(
+            "Include Forensics",
+            value=True,
+            help="Send ELA/FFT artifacts to model for analysis"
+        )
+
+    with col3:
+        watermark_mode = st.selectbox(
+            "Watermark Mode",
+            options=["ignore", "analyze"],
+            index=0,
+            help="How to handle watermarks/logos"
+        )
+
+    # Choose which models to evaluate (default: all)
     model_multiselect = st.multiselect(
         "Select models to evaluate",
         options=list(display_to_model_key.keys()),
@@ -559,12 +579,13 @@ with tab2:
             per_model_results = {}  # model_key -> list[per image dicts]
             per_model_metrics = []  # list of metrics dicts with model info
 
-            total_steps = len(eval_images) * num_runs * len(models_to_run)
+            total_steps = len(eval_images) * len(models_to_run)
             progress_bar = st.progress(0)
             step = 0
 
             for model_key in models_to_run:
-                model_display = MODEL_CONFIGS[model_key]["display_name"]
+                model_config = MODEL_CONFIGS[model_key]
+                model_display = model_config["display_name"]
                 st.write(f"### Running model: {model_display}")
                 per_image_results = []
 
@@ -580,36 +601,23 @@ with tab2:
                         gt_df["filename"] == filename, "label"
                     ].values[0]
 
-                    votes = []
-                    first_analysis = None
-                    first_score = None
+                    # Run detection once per image with new system
+                    res = analyze_single_image(
+                        image=img,
+                        model_config=model_config,
+                        context=eval_context,
+                        watermark_mode=watermark_mode,
+                        send_forensics=send_forensics
+                    )
 
-                    for j in range(num_runs):
-                        res = analyze_single_image(
-                            img, PROMPTS, SYSTEM_PROMPT, model_key
-                        )
+                    # Extract results
+                    predicted_label = res["classification"]  # "Real" or "AI Generated"
+                    confidence = res["confidence"]  # 0.0-1.0
+                    tier = res["tier"]  # "Authentic" / "Suspicious" / "Deepfake"
+                    analysis = res["analysis"]
+                    verdict_token = res["verdict_token"]  # "A" or "B"
 
-                        pred_label = (
-                            "AI Generated"
-                            if "AI" in res["classification"]
-                            else "Real"
-                        )
-                        votes.append(pred_label)
-
-                        if first_analysis is None:
-                            first_analysis = res.get("analysis", "")
-                            first_score = res.get("score", None)
-
-                        step += 1
-                        progress_bar.progress(step / total_steps)
-
-                    vote_counts = Counter(votes)
-                    consensus_label, consensus_count = vote_counts.most_common(1)[0]
-
-                    ai_votes = vote_counts.get("AI Generated", 0)
-                    real_votes = vote_counts.get("Real", 0)
-
-                    correct = consensus_label == actual
+                    correct = predicted_label == actual
 
                     per_image_results.append(
                         {
@@ -617,15 +625,17 @@ with tab2:
                             "model_name": model_display,
                             "filename": filename,
                             "actual_label": actual,
-                            "consensus_label": consensus_label,
-                            "ai_votes": ai_votes,
-                            "real_votes": real_votes,
-                            "total_runs": num_runs,
+                            "predicted_label": predicted_label,
                             "correct": correct,
-                            "analysis_example": first_analysis,
-                            "score_example": first_score,
+                            "confidence": confidence,
+                            "tier": tier,
+                            "verdict_token": verdict_token,
+                            "analysis": analysis,
                         }
                     )
+
+                    step += 1
+                    progress_bar.progress(step / total_steps)
 
                 if not per_image_results:
                     st.warning(
@@ -636,7 +646,7 @@ with tab2:
                 per_model_results[model_key] = per_image_results
 
                 y_true = [r["actual_label"] for r in per_image_results]
-                y_pred = [r["consensus_label"] for r in per_image_results]
+                y_pred = [r["predicted_label"] for r in per_image_results]
                 metrics = calculate_metrics(y_true, y_pred)
                 metrics["model_key"] = model_key
                 metrics["model_name"] = model_display
@@ -648,7 +658,7 @@ with tab2:
 
             # summary metrics table
             metrics_df = pd.DataFrame(per_model_metrics)
-            st.subheader("📈 Metrics by Model (Consensus per Image)")
+            st.subheader("📈 Evaluation Metrics by Model")
             st.dataframe(
                 metrics_df[
                     [
@@ -676,11 +686,11 @@ with tab2:
                 all_pred_rows.extend(res_list)
             preds_df = pd.DataFrame(all_pred_rows)
 
-            st.subheader("📋 Per-Image Consensus Results (All Models)")
+            st.subheader("📋 Per-Image Prediction Results (All Models)")
             df_display_ui = preds_df.copy()
-            if "analysis_example" in df_display_ui.columns:
-                df_display_ui["analysis_example"] = (
-                    df_display_ui["analysis_example"].str.slice(0, 100) + "..."
+            if "analysis" in df_display_ui.columns:
+                df_display_ui["analysis_preview"] = (
+                    df_display_ui["analysis"].str.slice(0, 100) + "..."
                 )
             st.dataframe(
                 df_display_ui[
@@ -688,13 +698,12 @@ with tab2:
                         "model_name",
                         "filename",
                         "actual_label",
-                        "consensus_label",
-                        "ai_votes",
-                        "real_votes",
-                        "total_runs",
+                        "predicted_label",
+                        "tier",
+                        "confidence",
+                        "verdict_token",
                         "correct",
-                        "score_example",
-                        "analysis_example",
+                        "analysis_preview",
                     ]
                 ]
             )
