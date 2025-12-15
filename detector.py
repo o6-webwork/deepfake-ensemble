@@ -190,7 +190,7 @@ class OSINTDetector:
 
         # Stage 2 & 3: Two-stage API calls (with error handling)
         try:
-            system_prompt = self._get_system_prompt()
+            system_prompt = self._get_system_prompt(send_forensics)
             analysis, verdict_result, req1_time, req2_time, req1_tokens, req2_tokens = self._two_stage_classification(
                 image_bytes,
                 ela_bytes,
@@ -505,8 +505,20 @@ Answer with ONLY the single letter A or B."""
 
         return analysis_text, verdict_result, req1_time, req2_time, req1_tokens, req2_tokens
 
-    def _get_system_prompt(self) -> str:
-        """Generate context-adaptive OSINT system prompt."""
+    def _get_system_prompt(self, include_forensic_context: bool = True) -> str:
+        """
+        Generate context-adaptive OSINT system prompt.
+
+        Args:
+            include_forensic_context: If True, include forensic-specific protocols (ELA/FFT).
+                                     If False, use generic visual analysis role.
+        """
+        if not include_forensic_context:
+            # Simplified prompt when forensics are disabled
+            return """You are a Senior OSINT Image Analyst specializing in military, disaster, and propaganda imagery verification.
+Focus on visual anomalies, physical inconsistencies, and composition errors to assess authenticity."""
+
+        # Full forensic-aware prompt when forensics are enabled
         base = """You are a Senior OSINT Image Analyst specializing in military, disaster, and propaganda imagery verification."""
 
         case_a = """
@@ -624,9 +636,10 @@ CASE C: Propaganda/Showcase Context (Studio/News)
             )
         else:  # ignore mode (default)
             return (
-                "Ignore all watermarks, text overlays, or corner logos. "
-                "Treat them as potential OSINT source attributions (e.g., news agency logos) "
-                "and NOT as evidence of AI generation."
+                "**DO NOT** analyze, mention, or consider any watermarks, text overlays, corner logos, "
+                "timestamps, or channel branding in your reasoning. These are OSINT source attributions "
+                "(news agencies, TV stations) and are **completely irrelevant** to authenticity assessment. "
+                "Focus ONLY on the visual content itself."
             )
 
     def _get_threshold_adjustments(self) -> Dict[str, str]:
