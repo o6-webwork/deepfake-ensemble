@@ -118,6 +118,7 @@ def get_default_model_configs() -> dict:
         "provider": "gemini",
         "api_key": os.getenv("GEMINI_API_KEY", "")
     }
+}
 
 
 # Load configurations from JSON or use defaults
