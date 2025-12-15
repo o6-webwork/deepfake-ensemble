@@ -9,8 +9,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for OpenCV and curl for health checks
+# Install system dependencies for OpenCV, git (for CLIP), and curl for health checks
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
     curl \
     libglib2.0-0 \
     libsm6 \
