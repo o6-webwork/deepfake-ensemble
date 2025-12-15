@@ -474,15 +474,15 @@ OSINT Context: {self.context.capitalize()}
             {
                 "type": "text",
                 "text": (
+                    f"{self.prompts['analysis_instructions']['spai_instructions']}\n"
                     "--- ANALYSIS INSTRUCTIONS ---\n"
                     "Analyze this image using the SPAI spectral analysis as context.\n\n"
                     f"{self.prompts['analysis_instructions']['visual_analysis']}\n\n"
                     "2. **SPAI Spectral Correlation**:\n"
-                    "   - Review the SPAI analysis report and attention heatmap\n"
-                    "   - SPAI uses Vision Transformer frequency-domain analysis (CVPR2025)\n"
-                    "   - Red regions in heatmap indicate suspicious spectral patterns\n"
-                    "   - Blue regions indicate normal frequency distributions\n"
-                    "   - Consider SPAI's confidence score but make your independent assessment\n"
+                    "   - Review the SPAI analysis report and attention heatmap overlay\n"
+                    "   - Use SPAI's frequency-domain insights alongside your visual analysis\n"
+                    "   - Red regions in the heatmap highlight spectral anomalies\n"
+                    "   - Blue regions show normal spectral distributions\n"
                     "   - Apply the appropriate OSINT protocol for this scene type\n\n"
                     f"{self.prompts['analysis_instructions']['metadata_instructions']}\n\n"
                     f"4. **Watermark Analysis**: {self._get_watermark_instruction()}\n\n"
@@ -577,31 +577,31 @@ Answer with ONLY the single letter A or B."""
 
     def _get_system_prompt_spai(self) -> str:
         """
-        Generate SPAI-aware OSINT system prompt.
+        Generate SPAI-aware OSINT system prompt from YAML configuration.
 
-        Replaces forensic protocols (ELA/FFT) with SPAI spectral analysis context.
+        Uses SPAI protocols instead of forensic protocols.
         """
-        # Base prompt adapted for SPAI
-        base = """You are an expert OSINT analyst specializing in detecting AI-generated imagery using SPAI spectral analysis.
+        # Base prompt from YAML
+        base = self.prompts['system_prompts']['base']
 
-SPAI (Spectral AI-Generated Image Detector) uses Vision Transformer frequency-domain learning to detect AI-generated content by analyzing spectral distributions. You will receive SPAI's analysis and attention heatmaps as context."""
+        # Get SPAI protocols from YAML
+        case_a = self.prompts['system_prompts']['spai_protocols']['case_a']
+        case_b = self.prompts['system_prompts']['spai_protocols']['case_b']
+        case_c = self.prompts['system_prompts']['spai_protocols']['case_c']
 
-        # Get OSINT protocols (adapt from YAML but replace forensic mentions with SPAI)
         if self.context == "auto":
-            protocols = """Apply the appropriate protocol based on image content:
-- Military scenes: Consider tactical formations, uniform consistency, equipment realism
-- Disaster scenes: Assess chaos realism, damage patterns, environmental consistency
-- Propaganda scenes: Evaluate professional production, staging, post-processing indicators"""
+            protocols = f"{case_a}\n{case_b}\n{case_c}"
         elif self.context == "military":
-            protocols = "Focus on military imagery: tactical formations, uniform details, equipment authenticity"
+            protocols = case_a
         elif self.context == "disaster":
-            protocols = "Focus on disaster imagery: damage realism, environmental consistency, chaos patterns"
+            protocols = case_b
         elif self.context == "propaganda":
-            protocols = "Focus on propaganda imagery: professional staging, post-processing, message framing"
+            protocols = case_c
         else:
-            protocols = "Apply general OSINT analysis principles"
+            # Default to auto if unknown context
+            protocols = f"{case_a}\n{case_b}\n{case_c}"
 
-        return f"{base}\n\n{protocols}"
+        return f"{base}\n{protocols}"
 
     def _parse_verdict(self, response) -> Dict:
         """
