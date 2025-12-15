@@ -1,9 +1,50 @@
 import os
+import json
+from pathlib import Path
 from openai import OpenAI
 
-# One place to define all models + which vLLM port they live on
-# Make sure the base_url ports match your docker-compose
-MODEL_CONFIGS = {
+# Load model configurations from JSON file
+def load_model_configs(config_path: str = "models.json") -> dict:
+    """
+    Load model configurations from JSON file.
+
+    Args:
+        config_path: Path to models.json file
+
+    Returns:
+        Dictionary of model configurations keyed by model ID
+    """
+    # Try to load from custom models.json first
+    json_path = Path(config_path)
+
+    if not json_path.exists():
+        # Fall back to default hardcoded configs if JSON doesn't exist
+        return get_default_model_configs()
+
+    try:
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+
+        # Convert from list format to dict format keyed by ID
+        model_configs = {}
+        for model in data.get("models", []):
+            model_id = model.pop("id")  # Remove 'id' from dict and use as key
+            model_configs[model_id] = model
+
+        return model_configs
+
+    except (json.JSONDecodeError, KeyError, FileNotFoundError) as e:
+        print(f"Error loading models.json: {e}")
+        print("Falling back to default configurations...")
+        return get_default_model_configs()
+
+
+def get_default_model_configs() -> dict:
+    """
+    Get default hardcoded model configurations.
+    Used as fallback if models.json doesn't exist or fails to load.
+    """
+    return {
     # Local vLLM Models
     "InternVL2_5-8B": {
         "display_name": "InternVL 2.5 8B",
@@ -77,7 +118,10 @@ MODEL_CONFIGS = {
         "provider": "gemini",
         "api_key": os.getenv("GEMINI_API_KEY", "")
     }
-}
+
+
+# Load configurations from JSON or use defaults
+MODEL_CONFIGS = load_model_configs()
 
 SYSTEM_PROMPT = """
 You are a deepfake detection assistant. You will receive an image or video and an analysis prompt.

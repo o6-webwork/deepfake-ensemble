@@ -40,6 +40,7 @@ COPY --chown=appuser:appuser classifier.py .
 COPY --chown=appuser:appuser detector.py .
 COPY --chown=appuser:appuser cloud_providers.py .
 COPY --chown=appuser:appuser generate_report_updated.py .
+COPY --chown=appuser:appuser models.json.example .
 
 # Create necessary directories with correct ownership
 RUN mkdir -p results testing_files misc analysis_output && \

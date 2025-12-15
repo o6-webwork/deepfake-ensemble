@@ -54,6 +54,58 @@ tab1, tab2 = st.tabs(["🔍 Detection", "📊 Evaluation"])
 with tab1:
     st.header("🕵️‍♂️ Deepfake Detection Chat")
 
+    # Model configuration uploader (in sidebar or expander)
+    with st.expander("⚙️ Model Configuration", expanded=False):
+        st.markdown("Upload a `models.json` file to configure custom models and API keys.")
+        uploaded_config = st.file_uploader(
+            "Upload models.json",
+            type=["json"],
+            help="Upload a JSON file with model configurations. See models.json.example for template."
+        )
+
+        if uploaded_config is not None:
+            try:
+                import json
+                import importlib
+                from config import load_model_configs
+
+                # Save uploaded file temporarily
+                with open("models.json", "wb") as f:
+                    f.write(uploaded_config.getbuffer())
+
+                # Reload config module to pick up new configurations
+                import config
+                importlib.reload(config)
+
+                # Update global MODEL_CONFIGS
+                from config import MODEL_CONFIGS
+
+                # Rebuild display mappings
+                model_key_to_display = {
+                    key: conf["display_name"] for key, conf in MODEL_CONFIGS.items()
+                }
+                display_to_model_key = {v: k for k, v in model_key_to_display.items()}
+
+                st.success(f"✅ Loaded {len(MODEL_CONFIGS)} models from configuration file!")
+                st.info("Models will be available after page refresh.")
+
+            except Exception as e:
+                st.error(f"❌ Error loading configuration: {str(e)}")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📥 Download Template"):
+                with open("models.json.example", "r") as f:
+                    st.download_button(
+                        label="Download models.json.example",
+                        data=f.read(),
+                        file_name="models.json",
+                        mime="application/json"
+                    )
+        with col2:
+            if st.button("🔄 Reload Models"):
+                st.rerun()
+
     # model selector for detection
     detect_model_display = st.selectbox(
         "Select detection model",
