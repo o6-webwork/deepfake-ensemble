@@ -473,10 +473,16 @@ Enable Debug Mode to see detailed SPAI scores.
                     # SPAI standalone mode - show only SPAI results with clear prediction
                     spai_prediction = "AI-Generated" if p_fake >= 0.5 else "Real"
 
+                    # Show probability in clearer format
+                    if spai_prediction == "AI-Generated":
+                        prob_display = f"**AI-Generated Probability:** {p_fake_pct:.1f}%"
+                    else:
+                        prob_display = f"**Real Probability:** {(100 - p_fake_pct):.1f}% (AI: {p_fake_pct:.1f}%)"
+
                     assistant_msg = f"""**Detection Mode:** SPAI Standalone (Spectral Analysis Only)
 
 **{tier_emoji} SPAI Prediction: {spai_prediction}**
-**Confidence:** {p_fake_pct:.1f}%
+{prob_display}
 
 **Spectral Analysis:**
 {reasoning}
