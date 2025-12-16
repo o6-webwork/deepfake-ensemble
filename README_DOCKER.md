@@ -15,16 +15,16 @@ This guide explains how to run the Deepfake Detection application in a Docker co
 
 ```bash
 # Build and start the application
-docker-compose up --build
+docker compose up --build
 
 # Or run in detached mode
-docker-compose up -d --build
+docker compose up -d --build
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Stop the application
-docker-compose down
+docker compose down
 ```
 
 The application will be available at: **http://localhost:8501**
@@ -49,7 +49,7 @@ docker run -p 8501:8501 \
 ```
 deepfake-detection/
 ├── Dockerfile              # Container definition
-├── docker-compose.yml      # Multi-container orchestration
+├── docker compose.yml      # Multi-container orchestration
 ├── requirements.txt        # Python dependencies
 ├── .dockerignore          # Files to exclude from build
 ├── .env.example           # Environment variables template
@@ -91,7 +91,7 @@ The application connects to vLLM model servers defined in `config.py`:
 
 #### For Linux host network mode:
 ```bash
-# Add to docker-compose.yml under deepfake-detector service:
+# Add to docker compose.yml under deepfake-detector service:
 network_mode: "host"
 ```
 
@@ -118,28 +118,28 @@ These volumes ensure your data persists even if the container is stopped or remo
 
 ### View Application Logs
 ```bash
-docker-compose logs -f deepfake-detector
+docker compose logs -f deepfake-detector
 ```
 
 ### Restart the Application
 ```bash
-docker-compose restart
+docker compose restart
 ```
 
 ### Rebuild After Code Changes
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 ### Access Container Shell
 ```bash
-docker-compose exec deepfake-detector /bin/bash
+docker compose exec deepfake-detector /bin/bash
 ```
 
 ### Stop and Remove Everything
 ```bash
-docker-compose down
-docker-compose down -v  # Also remove volumes
+docker compose down
+docker compose down -v  # Also remove volumes
 ```
 
 ## 🔍 Troubleshooting
@@ -148,7 +148,7 @@ docker-compose down -v  # Also remove volumes
 
 **Solution 1:** Check if model servers are accessible from the container
 ```bash
-docker-compose exec deepfake-detector curl http://100.64.0.1:8000/v1/models
+docker compose exec deepfake-detector curl http://100.64.0.1:8000/v1/models
 ```
 
 **Solution 2:** Update URLs in `config.py` to use appropriate network addressing:
@@ -158,7 +158,7 @@ docker-compose exec deepfake-detector curl http://100.64.0.1:8000/v1/models
 
 ### Issue: Port 8501 already in use
 
-**Solution:** Change the port mapping in `docker-compose.yml`:
+**Solution:** Change the port mapping in `docker compose.yml`:
 ```yaml
 ports:
   - "8502:8501"  # Change 8502 to any available port
@@ -166,7 +166,7 @@ ports:
 
 ### Issue: Out of memory
 
-**Solution:** Increase memory limits in `docker-compose.yml`:
+**Solution:** Increase memory limits in `docker compose.yml`:
 ```yaml
 deploy:
   resources:
@@ -185,7 +185,7 @@ sudo chown -R $USER:$USER results/ testing_files/ misc/ analysis_output/
 
 ### Using Docker Compose in Production
 
-Create a `docker-compose.prod.yml`:
+Create a `docker compose.prod.yml`:
 
 ```yaml
 version: '3.8'
@@ -210,7 +210,7 @@ services:
 
 Deploy:
 ```bash
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker compose.prod.yml up -d
 ```
 
 ### Using Kubernetes
@@ -273,7 +273,7 @@ The container includes a health check that pings Streamlit's health endpoint:
 
 ```bash
 # Check container health
-docker-compose ps
+docker compose ps
 
 # Manual health check
 curl http://localhost:8501/_stcore/health
@@ -299,7 +299,7 @@ docker inspect deepfake-detector-app
 2. Rebuild and restart:
 ```bash
 git pull
-docker-compose up --build -d
+docker compose up --build -d
 ```
 
 ### Update Dependencies
@@ -307,8 +307,8 @@ docker-compose up --build -d
 1. Modify `requirements.txt`
 2. Rebuild:
 ```bash
-docker-compose build --no-cache
-docker-compose up -d
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ## 📝 Development Workflow
@@ -316,7 +316,7 @@ docker-compose up -d
 For active development, use volume mounts for code:
 
 ```yaml
-# Add to docker-compose.yml
+# Add to docker compose.yml
 services:
   deepfake-detector:
     volumes:
@@ -331,7 +331,7 @@ This allows code changes without rebuilding the container. Streamlit will auto-r
 
 For issues or questions:
 1. Check the troubleshooting section above
-2. Review Docker logs: `docker-compose logs -f`
+2. Review Docker logs: `docker compose logs -f`
 3. Verify model server connectivity
 4. Check available resources (CPU, memory, disk)
 

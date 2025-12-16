@@ -1,5 +1,5 @@
 services:
-  # Streamlit Application
+  # Streamlit Application with SPAI Integration
   deepfake-detector:
     build:
       context: .
@@ -13,35 +13,154 @@ services:
       - ./testing_files:/app/testing_files
       - ./misc:/app/misc
       - ./analysis_output:/app/analysis_output
+      # Mount SPAI weights (if you want to update without rebuild)
+      - ./spai/weights:/app/spai/weights:ro
     environment:
       # Streamlit configuration
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
       - STREAMLIT_SERVER_HEADLESS=true
       - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      # SPAI will use GPU if available
+      - CUDA_VISIBLE_DEVICES=0
     restart: unless-stopped
     networks:
       - deepfake-network
-    # Optional: Set resource limits
+    # Remove depends_on if using external VLM servers
+    # depends_on:
+    #   - vllm-server
+    # Resource limits - SPAI needs more memory for PyTorch
     deploy:
       resources:
         limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
           cpus: '2.0'
           memory: 4G
-        reservations:
-          cpus: '1.0'
-          memory: 2G
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # =============================================================================
+  # vLLM Server (OPTIONAL - for self-contained deployment)
+  # =============================================================================
+  # Uncomment this section if you want to run a VLM server in Docker.
+  # Most users should use external VLM servers on the local network instead.
+  # =============================================================================
+  #
+  # vllm-server:
+  #   image: vllm/vllm-openai:latest
+  #   container_name: vllm-server
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ~/.cache/huggingface:/root/.cache/huggingface
+  #   environment:
+  #     - VLLM_WORKER_MULTIPROC_METHOD=spawn
+  #     - HF_HOME=/root/.cache/huggingface
+  #   command: >
+  #     --model Qwen/Qwen2-VL-7B-Instruct
+  #     --host 0.0.0.0
+  #     --port 8000
+  #     --trust-remote-code
+  #     --max-model-len 8192
+  #     --gpu-memory-utilization 0.9
+  #   restart: unless-stopped
+  #   networks:
+  #     - deepfake-network
+  #   runtime: nvidia
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
 
 networks:
   deepfake-network:
     driver: bridge
 
-# Note: This docker-compose only runs the Streamlit app.
-# The vLLM model servers (InternVL, MiniCPM, Qwen3) are expected to be
-# running separately and accessible at the URLs defined in config.py:
-# - http://100.64.0.1:8000/v1/ (InternVL 2.5)
-# - http://localhost:1234/v1/ (InternVL 3.5)
-# - http://100.64.0.3:8001/v1/ (MiniCPM-V)
-# - http://100.64.0.3:8006/v1/ (Qwen3 VL)
+# ==============================================================================
+# SPAI Multi-Container Architecture
+# ==============================================================================
 #
-# If you need to modify these URLs for your Docker network, update config.py
+# Primary Service:
+# ----------------
+# deepfake-detector: Streamlit web UI with SPAI spectral analysis
+#   - SPAI standalone mode: Fast detection (~50ms) - No VLM needed
+#   - SPAI assisted mode: SPAI + VLM reasoning (~3s)
+#   - Port: 8501 (Web UI)
+#   - Memory: 4-8GB (PyTorch + SPAI model)
+#   - GPU: Optional but recommended for SPAI performance
+#
+# External VLM Servers (Recommended):
+# ------------------------------------
+# The app expects VLM servers running on your local network at URLs defined
+# in config.py (or models.json):
+#
+# Example servers you may be running:
+#   - http://100.64.0.1:8000/v1/     (InternVL 2.5)
+#   - http://localhost:1234/v1/      (InternVL 3.5)
+#   - http://100.64.0.3:8001/v1/     (MiniCPM-V)
+#   - http://100.64.0.3:8006/v1/     (Qwen3 VL)
+#
+# These external servers are accessed directly from the container via your
+# local network. No additional Docker services needed!
+#
+# Architecture Flow:
+# ------------------
+# ┌─────────────┐                    ┌──────────────────┐
+# │   Browser   │───────────────────>│ Streamlit (8501) │
+# │             │<───────────────────│ + SPAI Detector  │
+# └─────────────┘                    └────────┬─────────┘
+#                                             │
+#                         VLM API Call        │
+#                    (spai_assisted mode)     │
+#                                             │
+#                                    ┌────────▼────────────┐
+#                                    │ External vLLM       │
+#                                    │ (Your local network)│
+#                                    └─────────────────────┘
+#
+# Quick Start:
+# ------------
+# 1. Ensure SPAI weights downloaded: spai/weights/spai.pth
+# 2. Configure VLM endpoints in config.py or upload models.json
+# 3. Start container: docker-compose up -d
+# 4. Access UI: http://localhost:8501
+# 5. Select detection mode:
+#    - spai_standalone: No VLM required (fast)
+#    - spai_assisted: Uses external VLM servers (comprehensive)
+#
+# Network Access:
+# ---------------
+# The container uses bridge networking and can access:
+# - localhost services on the host (use host.docker.internal on Mac/Windows)
+# - Local network IPs (e.g., 100.64.0.x, 192.168.x.x)
+# - Internet (for cloud VLM providers: OpenAI, Anthropic, Gemini)
+#
+# For localhost URLs in config.py, you may need to change:
+#   http://localhost:8000  →  http://host.docker.internal:8000  (Mac/Windows)
+#   http://localhost:8000  →  http://172.17.0.1:8000           (Linux)
+#
+# GPU Support:
+# ------------
+# For GPU-accelerated SPAI (recommended):
+# 1. Install nvidia-docker2
+# 2. Uncomment 'runtime: nvidia' section in deepfake-detector service
+# 3. Set CUDA_VISIBLE_DEVICES to select GPU
+#
+# Without GPU, SPAI runs on CPU (slower but functional).
+#
+# Optional: Self-Contained VLM Server
+# ------------------------------------
+# If you want VLM inside Docker (not recommended - use external instead):
+# 1. Uncomment the vllm-server service above
+# 2. Update config.py base_url to: http://vllm-server:8000/v1
+# 3. Uncomment depends_on in deepfake-detector service
+# 4. Requires: NVIDIA GPU + nvidia-docker2
+#
+# ==============================================================================

@@ -5,3 +5,37 @@ pandas>=2.0.0
 openai>=1.0.0
 xlsxwriter>=3.1.0
 openpyxl>=3.1.0
+exifread>=3.0.0
+pyyaml>=6.0.0
+
+# Cloud VLM providers
+anthropic>=0.34.0
+google-generativeai>=0.8.0
+
+# SPAI (Spectral AI-Generated Image Detector) dependencies
+torch>=2.0.0
+torchvision>=0.15.0
+scipy>=1.14.0
+timm==0.4.12
+yacs>=0.1.8
+torchmetrics>=1.4.0
+tqdm>=4.66.0
+albumentations==1.4.14
+albucore==0.0.16
+einops>=0.8.0
+numpy>=1.26.0
+ftfy>=6.1.0
+regex>=2023.0.0
+git+https://github.com/openai/CLIP.git
+
+# SPAI additional dependencies (from spai/requirements.txt)
+seaborn>=0.13.2
+tensorboard>=2.0.0
+termcolor>=2.4.0
+click>=8.1.7
+neptune>=1.11.1
+lmdb>=1.5.1
+networkx>=3.3
+onnx>=1.15.0
+onnxscript>=0.1.0
+filetype>=1.2.0

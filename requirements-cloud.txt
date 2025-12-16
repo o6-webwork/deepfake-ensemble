@@ -1,0 +1,14 @@
+# Cloud VLM Provider Dependencies
+# Install with: pip install -r requirements-cloud.txt
+
+# Core dependencies (already in main requirements)
+openai>=1.0.0
+
+# Anthropic Claude
+anthropic>=0.34.0
+
+# Google Gemini
+google-generativeai>=0.8.0
+
+# Optional: For enhanced error handling
+tenacity>=8.0.0

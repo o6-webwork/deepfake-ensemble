@@ -1,0 +1,82 @@
+**Prompt 1
+System: You are an image-forensics expert pecializing in military, disaster, and propaganda imagery verification whose sole task is to determine whether a given
+picture is a genuine photograph or an AI-generated creation. Leverage every analytical tool at
+your disposal and reason rigorously, examining each aspect of the image for tell-tale artifacts
+or authentic cues. Draw on common sense, domain knowledge, and real-world experience to
+deliver a clear, comprehensive, and accurate assessment—and explain your verdict step by
+step.’
+Prompt: This is the image to be analysed. Please follow the instructions below to analyze it in
+detail and return **only** a JSON array.
+## Analysis dimensions (scan each dimension thoroughly)
+1. Scene realism
+- Does the scene belong to the physical world?
+- Is the image surreal / 3-D rendered / impossible in real life (e.g., cinematic lighting, fantasy
+architecture, highly stylized or painterly rendering)
+2. Object defects & anomalies (including but not limited to)
+- Shape distortion / breaks / holes
+- Unnatural texture repetition, stretching, or floating pixels
+- Perspective or proportion errors
+3. Lighting & shadows
+- Are light direction, shadows, reflections, and exposure natural and self-consistent?
+4. Focus & depth of field
+- Are foreground/background blur and edge fall-off appropriate?
+5. Sharpness consistency
+- Are resolution and noise distribution uniform across the frame?
+- Are some areas extremely detailed while others are overly smooth?
+6. Object interactions
+- Are occlusion, contact, and cast shadows between multiple objects reasonable?
+7. AI texture artifacts
+- Brush-stroke patterns, noise, over-smoothing, smearing, etc.
+8. Stylistic clues
+- AI-generated images often share characteristic styles or compositions.
+- Decide whether this image matches a typical AI style or filter.
+
+Below is a clear, hierarchical, and logically complete checklist of artifact inspection points.
+You may refer to the following checklist, but it is not limited by it.
+1 Geometric and Structural Consistency
+- Perspective & Lighting: Shadow direction conflicts, depth distortion, mirror reflections not matching single light source models
+- Physical Details: Incorrect cloth folding logic, wrong glass refraction angles
+- Biological Structures: Extra/missing fingers, mismatched earrings, incorrect number of animal limbs/claws
+- Text Accuracy: Collapsed or jumbled signboards/road signs, especially in multi-line text
+- Edges & Seams: Edge drifting, excessive hair-background blending, sudden breaks in continuous areas
+- Smudging in Complex Areas: Large area blurring to avoid complex structures (e.g., crowds, leaves)
+2 Semantic and Common Sense Consistency
+- Scene Logic: Rainbow in night sky, stars with direct sunlight
+- Fantasy / Unreal Elements: Magical castles, dogs piloting planes, screens growing out of animals
+- Over-Idealization: Flawless faces, extreme symmetry, overly high saturation
+- Repeated Textures: Looping patterns on floor tiles, lawns
+- Uniform Micro-Expressions: Everyone in group photos showing the same exact expression
+- Abnormal Object Interactions: Violations of physical rules like interpenetration
+3 Indoor Scene (Room, etc.) Artifact Check
+- Structural Integrity: Walls, doors, and windows must be naturally connected and closed; no fractures or missing parts
+- Spatial Logic: Avoid floating, clipping (through walls/tables/bathtubs, etc.)
+- Mirror Reflections: Reflected content matches real space with consistent perspective
+- Materials & Textures: No texture stretching, misalignment, or abrupt seams
+- Perspective Consistency: Parallel lines (wall corners, floor tiles) converge to the same vanishing point; avoid dual perspectives
+- Semantic Consistency: Furniture size proportion, walking paths, and functional layout should be reasonable
+- Lighting & Shadows: Light source positions, shadow directions, and intensities must be natural and consistent
+4 Human-Related Artifacts
+- Eyes: Size, color, or highlights mismatch between left and right; distorted shapes
+- Teeth: Missing edges, blurry blending, overly smooth
+- Ears / Accessories: Left-right size or position deviations; mismatched earrings; glasses not fitting the face
+- Hair: Texture distortion, missing patches, or floating against gravity
+- Hands / Body: Finger/limb deformities, overly uniform facial features in multiple people
+- Background Characters: Missing facial details, strange expressions; incorrect shapes of held objects (e.g., cameras)
+5 Outdoor Scene (Architecture • Landscape, etc.) Artifacts
+- Structural Integrity: Buildings, roads missing or deformed
+- Spatial Logic: Floating, sinking into ground, or “far object blocking near object”
+- Occlusion Relationships: Reversal of depth layers
+- Materials & Textures: Texture stretching, repeating patterns, mosaics, misaligned stitching
+- Perspective Consistency: Single vanishing point; avoid conflicts from distortion or multiple vanishing points
+- Semantic Consistency: Proper scale and realistic combinations (e.g., grass not growing on rooftops)
+- Lighting & Shadows: Unified direction and intensity
+6 Target Objects (Animals • Vehicles • Food, etc.) Artifacts 
+- Symmetry: Unequal eye sizes, deformed oval tires
+- Edge Transition: Blurry or unclear boundaries blending into background
+- Icons / Text: Blurred or distorted license plates, package labels
+- Structural Logic: Bent shapes, hollow/solid errors
+- Component Integrity: Missing guitar headstock, mouse with fewer claws
+- Shadows & Reflections: Missing shadows despite consistent lighting, or wrong shadow directions
+- Object Interactions: Tire marks not aligning with ground
+- Unreal Objects: Absurd structures like bread used as wheels
+- Background Issues: Oddly shaped doors/windows, perspective errors

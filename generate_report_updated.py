@@ -35,6 +35,44 @@ eval_file_2 = 'results/evaluation_20251202_213404.xlsx'
 metrics_df_2 = pd.read_excel(eval_file_2, sheet_name='metrics')
 predictions_df_2 = pd.read_excel(eval_file_2, sheet_name='predictions')
 
+# Normalize data format (handle both old score-based and new A/B verdict formats)
+def normalize_predictions_format(df):
+    """Ensure predictions DataFrame has required columns for analysis."""
+    df = df.copy()
+
+    # Handle consensus_label vs predicted_label (old vs new format)
+    if 'predicted_label' in df.columns:
+        df['consensus_label'] = df['predicted_label']
+    elif 'consensus_label' not in df.columns:
+        raise ValueError("Missing both 'consensus_label' and 'predicted_label' columns")
+
+    # Add confidence if missing (old format)
+    if 'confidence' not in df.columns:
+        if 'score_example' in df.columns:
+            df['confidence'] = df['score_example'] / 10.0
+        else:
+            # Infer from consensus_label
+            df['confidence'] = df['consensus_label'].map({
+                'AI Generated': 0.75,
+                'Real': 0.25
+            })
+
+    # Add tier if missing (old format)
+    if 'tier' not in df.columns:
+        def confidence_to_tier(conf):
+            if conf >= 0.90:
+                return 'Deepfake'
+            elif conf >= 0.50:
+                return 'Suspicious'
+            else:
+                return 'Authentic'
+        df['tier'] = df['confidence'].apply(confidence_to_tier)
+
+    return df
+
+predictions_df_1 = normalize_predictions_format(predictions_df_1)
+predictions_df_2 = normalize_predictions_format(predictions_df_2)
+
 # Merge metrics
 metrics_df = pd.concat([metrics_df_1, metrics_df_2], ignore_index=True)
 
