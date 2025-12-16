@@ -1,187 +1,387 @@
-# 🔍 Deepfake Detection VLM
+# NexInspect
 
-A Streamlit-based web application for detecting AI-generated content using Vision Language Models (VLMs). This tool provides a user-friendly interface for analyzing images and videos to determine if they contain AI-generated or deepfake content.
+Advanced deepfake detection system combining SPAI (Spectral AI-Generated Image Detector) with Vision-Language Models for comprehensive image authenticity analysis.
 
-## Features
+## 🎯 Overview
 
-### 🎯 Core Functionality
-- **Multi-format Support**: Analyze images (PNG, JPG, JPEG, GIF, BMP) and videos (MP4, AVI, MOV, MKV)
-- **Individual Analysis**: Each uploaded file gets analyzed separately with dedicated result sections
-- **2-Step Classification Process**:
-  1. Detailed analysis of visual artifacts and inconsistencies
-  2. Binary classification based on the analysis (Real vs AI Generated)
-- **Real-time Results**: Live progress indicators and immediate feedback
+This system provides two detection modes optimized for OSINT analysis of military, disaster, and propaganda imagery:
 
-### 🔧 Configuration
-- **Dynamic Endpoint Configuration**: Connect to any vLLM deployment via sidebar
-- **Model Selection**: Automatically load and select from available models at the endpoint
-- **Temperature Control**: Adjust model creativity/determinism (0.0 - 2.0)
-- **Custom Prompts**: Modify analysis prompts and assistant response prefills
+- **SPAI Standalone**: Fast spectral analysis (~5s) using frequency-domain deep learning
+- **SPAI + VLM**: Comprehensive analysis combining SPAI with semantic reasoning from Vision-Language Models
 
-### 📊 Data Export
-- **CSV Export**: Download comprehensive analysis results including:
-  - Filename and metadata
-  - Endpoint URL and model name
-  - User prompt and assistant prefill
-  - Temperature setting
-  - Full analysis text
-  - Classification result
-  - Raw classification response
-  - Timestamp
+## ✨ Key Features
 
-### 🐛 Debug Features
-- **Raw Response Viewer**: Expandable sections showing complete VLM outputs
-- **Step-by-step Tracking**: Separate debug info for analysis and classification steps
-- **Error Handling**: Clear error messages for API failures
+### Detection Capabilities
+- **Dual-mode detection**: Choose between speed (SPAI only) or comprehensiveness (SPAI + VLM)
+- **OSINT context awareness**: Specialized protocols for military, disaster, and propaganda scenarios
+- **Visual explanations**: Attention heatmaps showing suspicious regions with warm color highlighting
+- **Batch evaluation**: Process multiple images with configurable parameters and audit trail
 
-## Installation
+### Technical Features
+- **GPU-accelerated inference**: ~5 seconds per image on NVIDIA GPUs
+- **Model caching**: Instant subsequent inferences after first load
+- **Docker deployment**: Full containerization with GPU support
+- **Multiple VLM providers**: Support for vLLM, OpenAI, Anthropic, and Google Gemini
+- **Excel reporting**: Comprehensive evaluation exports with config, metrics, and per-image results
+
+## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
-- Access to a vLLM deployment with vision capabilities
 
-### Setup
+- Docker with NVIDIA GPU support ([nvidia-docker2](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html))
+- SPAI model weights ([download link](https://drive.google.com/file/d/1vvXmZqs6TVJdj8iF1oJ4L_fcgdQrp_YI/view))
+- VLM server endpoint (local or cloud)
 
-1. **Clone or download the project files**
+### Installation
 
-2. **Create a virtual environment**:
+1. **Clone the repository**
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   git clone https://github.com/o6-webwork/deepfake-detection.git
+   cd deepfake-detection
    ```
 
-3. **Install dependencies**:
+2. **Download SPAI weights**
+   ```bash
+   # Place the downloaded spai.pth file in:
+   mkdir -p spai/weights
+   # Copy spai.pth to spai/weights/spai.pth
+   ```
+
+3. **Configure VLM endpoints**
+
+   Copy and edit the model configuration:
+   ```bash
+   cp models.json.example models.json
+   # Edit models.json with your VLM endpoints
+   ```
+
+4. **Start the application**
+   ```bash
+   docker-compose up -d
+   ```
+
+5. **Access the web interface**
+
+   Open your browser to: http://localhost:8501
+
+## 📖 Usage
+
+### Single Image Analysis
+
+1. Upload an image via the web interface
+2. Select detection mode:
+   - **SPAI Standalone**: Fast spectral analysis only
+   - **SPAI + VLM**: Comprehensive analysis with semantic reasoning
+3. Configure SPAI parameters (Advanced Settings):
+   - Resolution: 512-2048 or Original (default: 1280)
+   - Heatmap transparency: 0.0-1.0 (default: 0.6)
+4. Click "Analyze Image"
+
+**Output includes:**
+- Classification tier (Authentic/Suspicious/Deepfake)
+- Confidence score (0-100%)
+- Detailed reasoning
+- Blended attention heatmap (warm colors = suspicious regions)
+
+### Batch Evaluation
+
+1. Navigate to the "Batch Evaluation" tab
+2. Upload multiple images
+3. Upload ground truth CSV with columns: `filename`, `label`
+4. Configure evaluation settings:
+   - OSINT context (auto/military/disaster/propaganda)
+   - Detection mode (SPAI standalone or SPAI + VLM)
+   - SPAI resolution
+5. Select VLM models to evaluate (if using SPAI + VLM)
+6. Click "Run Evaluation"
+7. Download Excel report with results
+
+**Excel Export contains:**
+- **config**: Evaluation parameters for audit trail
+- **metrics**: Accuracy, precision, recall, F1, confusion matrix per model
+- **predictions**: Per-image results with analysis text
+
+## 🎛️ Configuration
+
+### VLM Model Configuration
+
+Edit `models.json` to configure your VLM endpoints:
+
+```json
+{
+  "InternVL 2.5 8B": {
+    "provider": "vllm",
+    "base_url": "http://100.64.0.1:8000/v1",
+    "model_name": "OpenGVLab/InternVL2_5-8B",
+    "max_tokens": 4096
+  },
+  "GPT-4o": {
+    "provider": "openai",
+    "api_key": "your-api-key",
+    "model_name": "gpt-4o",
+    "max_tokens": 4096
+  }
+}
+```
+
+**Supported providers:**
+- `vllm`: Local vLLM servers
+- `openai`: OpenAI API (GPT-4V, GPT-4o)
+- `anthropic`: Anthropic API (Claude 3)
+- `gemini`: Google Gemini API
+
+### OSINT Context Protocols
+
+The system includes specialized detection protocols for different scenarios:
+
+- **Military**: Uniforms, parades, formations - distinguishes natural patterns from AI duplication
+- **Disaster**: Floods, earthquakes, fires - handles chaotic scenes appropriately
+- **Propaganda**: Studio shots, news imagery - differentiates retouching from generation
+- **Auto**: Automatically applies all protocols
+
+### Docker Configuration
+
+GPU access is configured in `docker-compose.yml`:
+
+```yaml
+services:
+  deepfake-detector:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+```
+
+**Environment variables:**
+- `CUDA_VISIBLE_DEVICES`: Select GPU device (default: 0)
+- `STREAMLIT_SERVER_PORT`: Web interface port (default: 8501)
+
+## 📊 Performance
+
+### SPAI Standalone Mode
+- **First inference**: ~2 minutes (model load) + 5 seconds (inference)
+- **Subsequent inferences**: ~5 seconds (GPU cached)
+- **No VLM required**: Perfect for batch processing
+
+### SPAI + VLM Mode
+- **Total time**: ~8 seconds (5s SPAI + 3s VLM)
+- **Comprehensive analysis**: Spectral + semantic reasoning
+- **Context-aware**: OSINT protocols guide VLM attention
+
+### Hardware Requirements
+- **GPU**: NVIDIA GPU with 8GB+ VRAM (tested on RTX A5000)
+- **RAM**: 8GB minimum, 16GB recommended
+- **Storage**: 10GB for application + models
+
+## 🔬 How It Works
+
+### SPAI Spectral Analysis
+
+SPAI (Spectral AI-Generated Image Detector) is a CVPR 2025 Vision Transformer that analyzes frequency-domain patterns to detect AI-generated content:
+
+1. **Preprocessing**: Image converted to spectral representation
+2. **Feature extraction**: Masked Feature Modeling ViT processes frequency patterns
+3. **Classification**: Binary prediction (Real/AI-Generated) with confidence score
+4. **Attention visualization**: Heatmap highlights suspicious regions
+
+**Color interpretation:**
+- **Dark red**: Highest confidence of AI manipulation
+- **Orange/Yellow**: Moderate suspicion
+- **Light to dark blue**: Low confidence (likely authentic)
+
+### VLM Integration (SPAI + VLM Mode)
+
+When SPAI + VLM mode is selected:
+
+1. **SPAI analysis**: Spectral analysis generates score + heatmap
+2. **Context selection**: OSINT protocol selected based on image type
+3. **VLM reasoning**: Model analyzes image + heatmap with context-specific guidelines
+4. **Verdict extraction**: Final classification via logprob-based scoring
+
+The VLM receives:
+- Original image
+- SPAI attention heatmap overlay
+- SPAI classification and confidence
+- Context-specific detection protocols
+- Metadata analysis results
+
+## 🛠️ Development
+
+### Project Structure
+
+```
+.
+├── app.py                      # Streamlit web interface
+├── detector.py                 # Main detection pipeline
+├── spai_detector.py           # SPAI model wrapper
+├── classifier.py              # VLM classification logic
+├── shared_functions.py        # Evaluation utilities
+├── prompts.yaml               # Detection prompts and protocols
+├── config.py                  # Application configuration
+├── models.json.example        # VLM endpoint template
+├── docker-compose.yml         # Container orchestration
+├── Dockerfile                 # Application container
+├── requirements.txt           # Python dependencies
+└── spai/                      # SPAI model source code
+    ├── configs/
+    ├── spai/                  # Core SPAI implementation
+    └── weights/               # Model weights (download separately)
+```
+
+### Running Without Docker
+
+1. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-## Usage
-
-### Starting the Application
-
-1. **Activate the virtual environment**:
+2. **Set up SPAI weights**
    ```bash
-   source venv/bin/activate
+   # Download and place in spai/weights/spai.pth
    ```
 
-2. **Run the Streamlit app**:
+3. **Run the application**
    ```bash
-   streamlit run deepfake_detector.py
+   streamlit run app.py --server.port=8501 --server.address=0.0.0.0
    ```
 
-3. **Open your browser** to the displayed URL (typically `http://localhost:8501`)
+### Debug Mode
 
-### Configuration
+Enable debug mode in the UI to see:
+- Performance timing breakdown
+- SPAI raw scores and predictions
+- VLM request latency
+- EXIF metadata analysis
+- Raw logprobs and top-k predictions
 
-1. **Configure Endpoint** (Sidebar):
-   - Enter your vLLM endpoint URL (e.g., `http://100.64.0.3:8001`)
-   - Click "🔄 Load Models" to fetch available models
-   - Select your preferred model from the dropdown
+## 📝 VLM Server Setup
 
-2. **Customize Analysis** (Main Panel):
-   - Modify the user prompt to focus on specific detection criteria
-   - Adjust the assistant response prefill to guide analysis structure
-   - Set temperature for response consistency (0.0 = deterministic)
+### Local vLLM Server
 
-### Analyzing Content
+For best performance, run VLM servers locally:
 
-1. **Upload Files**: Use the file uploader to select images or videos
-2. **Review Settings**: Ensure your prompt, prefill, and temperature are configured
-3. **Start Analysis**: Click "🔍 Analyze for Deepfakes"
-4. **Review Results**: Each file displays:
-   - Classification (Real/AI Generated)
-   - Detailed analysis explanation
-   - Debug information (expandable)
-
-### Exporting Results
-
-- Click "📥 Download CSV Report" in the Export Results section
-- CSV includes all analysis data with timestamp for record-keeping
-
-## Technical Details
-
-### Architecture
-- **Frontend**: Streamlit web interface
-- **Backend**: Direct integration with vLLM OpenAI-compatible API
-- **Analysis Pipeline**: Two-step process for improved accuracy
-  1. Vision analysis with custom prompts
-  2. Text-based classification of the analysis
-
-### API Integration
-- Compatible with any vLLM deployment using OpenAI API format
-- Automatic endpoint discovery via `/v1/models`
-- Support for both image+text and text-only API calls
-
-### Video Processing
-- Automatic frame extraction from video files
-- Configurable frame sampling (default: 5 frames per video)
-- Each frame analyzed as individual image
-
-## Dependencies
-
-```
-streamlit>=1.28.0
-requests>=2.31.0
-Pillow>=10.0.0
-opencv-python>=4.8.0
-pandas>=2.0.0
+```bash
+docker run -d \
+  --gpus all \
+  -p 8000:8000 \
+  -v ~/.cache/huggingface:/root/.cache/huggingface \
+  vllm/vllm-openai:latest \
+  --model OpenGVLab/InternVL2_5-8B \
+  --trust-remote-code \
+  --max-model-len 8192 \
+  --gpu-memory-utilization 0.9
 ```
 
-## Configuration Examples
-
-### Typical vLLM Endpoints
-- Local deployment: `http://localhost:8000`
-- Remote server: `http://your-server-ip:8001`
-- Cloud deployment: `https://your-endpoint.com`
-
-### Recommended Models
-- **MiniCPM-V series**: Good balance of speed and accuracy
-- **LLaVA models**: Strong vision understanding capabilities
-- **Qwen-VL models**: Multilingual support
-
-### Prompt Examples
-
-**Basic Detection**:
-```
-Is this image real or AI-generated?
+Update `models.json`:
+```json
+{
+  "InternVL 2.5 8B": {
+    "provider": "vllm",
+    "base_url": "http://localhost:8000/v1",
+    "model_name": "OpenGVLab/InternVL2_5-8B"
+  }
+}
 ```
 
-**Detailed Analysis**:
+### Cloud Providers
+
+The system supports cloud VLM providers:
+
+**OpenAI:**
+```json
+{
+  "GPT-4o": {
+    "provider": "openai",
+    "api_key": "sk-...",
+    "model_name": "gpt-4o"
+  }
+}
 ```
-Analyze this image for signs of AI generation. Look for artifacts like:
-- Unnatural lighting or shadows
-- Inconsistent textures
-- Facial anomalies
-- Background inconsistencies
+
+**Anthropic:**
+```json
+{
+  "Claude 3.5 Sonnet": {
+    "provider": "anthropic",
+    "api_key": "sk-ant-...",
+    "model_name": "claude-3-5-sonnet-20241022"
+  }
+}
 ```
 
-## Troubleshooting
+**Google Gemini:**
+```json
+{
+  "Gemini 2.0 Flash": {
+    "provider": "gemini",
+    "api_key": "...",
+    "model_name": "gemini-2.0-flash-exp"
+  }
+}
+```
 
-### Common Issues
+## 🔍 Troubleshooting
 
-**"Failed to load models"**:
-- Check that the endpoint URL is correct
-- Ensure the vLLM server is running and accessible
-- Verify network connectivity
+### SPAI Running on CPU (Slow)
 
-**"API call failed"**:
-- Confirm the selected model supports vision tasks
-- Check server logs for detailed error information
-- Verify the endpoint has sufficient resources
+If inference takes 60+ seconds instead of 5 seconds:
 
-**Slow analysis**:
-- Reduce image resolution before upload
-- Lower the max_tokens parameter in the code
-- Use a smaller/faster model
+1. **Verify GPU access in container:**
+   ```bash
+   docker exec deepfake-detector-app nvidia-smi
+   ```
 
-## Contributing
+2. **Check Docker GPU configuration:**
+   Ensure `docker-compose.yml` has GPU resources configured
 
-This tool is designed for defensive security analysis. Contributions should focus on:
-- Improved detection accuracy
-- Better user experience
-- Enhanced export capabilities
-- Bug fixes and performance improvements
+3. **Enable debug mode** and check "SPAI Device" field:
+   - Should show: `cuda:0`
+   - If shows `cpu`, GPU access is not working
 
-## Disclaimer
+### VLM Connection Errors
 
-This tool is intended for research, educational, and defensive security purposes. Results should be validated through multiple methods for critical applications. The accuracy depends on the underlying VLM model and training data.
+1. **Check VLM server is running:**
+   ```bash
+   curl http://localhost:8000/v1/models
+   ```
+
+2. **Verify endpoint in models.json** matches server address
+
+3. **For cloud providers:** Check API key is valid
+
+### Model Loading Fails
+
+1. **Verify SPAI weights exist:**
+   ```bash
+   ls -lh spai/weights/spai.pth
+   # Should be ~2GB
+   ```
+
+2. **Check Docker volume mount:**
+   ```yaml
+   volumes:
+     - ./spai/weights:/app/spai/weights:ro
+   ```
+
+## 📄 License
+
+This project integrates SPAI under its original license. See `spai/LICENSE` for details.
+
+## 🙏 Acknowledgments
+
+- **SPAI**: Spectral AI-Generated Image Detector ([CVPR 2025](https://github.com/HighwayWu/SPAI))
+- **Vision-Language Models**: Various providers (OpenAI, Anthropic, vLLM community)
+- **Streamlit**: Web interface framework
+
+## 📧 Support
+
+For issues and questions:
+- Open an issue on GitHub
+- Check existing documentation in the repository
+
+---
+
+**Note**: This system is designed for OSINT analysis and research purposes. Always verify critical findings through multiple methods.

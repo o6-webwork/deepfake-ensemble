@@ -9,15 +9,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for OpenCV and curl for health checks
+# Install system dependencies for OpenCV, git (for CLIP), and curl for health checks
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
     curl \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
     libgomp1 \
-    libglib2.0-0 \
     libgl1 \
     libgthread-2.0-0 \
     && apt-get clean \
@@ -29,15 +29,35 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
-COPY app.py .
-COPY config.py .
-COPY shared_functions.py .
-COPY generate_report.py .
-COPY generate_report_updated.py .
+# Create non-root user for security
+RUN useradd -m -s /bin/bash --uid 1001 appuser
 
-# Create necessary directories
-RUN mkdir -p results testing_files misc analysis_output
+# Copy application files with correct ownership
+COPY --chown=appuser:appuser app.py .
+COPY --chown=appuser:appuser config.py .
+COPY --chown=appuser:appuser shared_functions.py .
+COPY --chown=appuser:appuser classifier.py .
+COPY --chown=appuser:appuser detector.py .
+COPY --chown=appuser:appuser spai_detector.py .
+COPY --chown=appuser:appuser cloud_providers.py .
+COPY --chown=appuser:appuser generate_report_updated.py .
+COPY --chown=appuser:appuser models.json.example .
+COPY --chown=appuser:appuser prompts.yaml .
+
+# Copy SPAI module and required subdirectories
+COPY --chown=appuser:appuser spai/ ./spai/
+
+# NOTE: SPAI weights must be downloaded separately due to size
+# Download spai.pth from: https://drive.google.com/file/d/1vvXmZqs6TVJdj8iF1oJ4L_fcgdQrp_YI/view
+# Place in: spai/weights/spai.pth before building the Docker image
+# The file should exist at: spai/weights/spai.pth
+
+# Create necessary directories with correct ownership
+RUN mkdir -p results testing_files misc analysis_output && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose Streamlit default port
 EXPOSE 8501
