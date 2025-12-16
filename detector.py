@@ -193,9 +193,9 @@ class OSINTDetector:
                 max_size=self.spai_max_size
             )
 
-            # Convert SPAI confidence to logits for consistency
+            # Convert SPAI score to match VLM format (P(fake))
             spai_score = spai_result["spai_score"]  # 0.0-1.0 (AI probability)
-            confidence_fake = spai_result["spai_confidence"]
+            p_fake = spai_score  # SPAI score IS P(fake) directly
 
             # Create pseudo-logits (for consistency with VLM mode)
             if spai_score >= 0.5:
@@ -211,7 +211,7 @@ class OSINTDetector:
 
             result = {
                 "tier": spai_result["tier"],
-                "confidence": confidence_fake,
+                "confidence": p_fake,  # Return P(fake) to match VLM format
                 "reasoning": spai_result["analysis_text"],
                 "spai_report": spai_result["analysis_text"],
                 "spai_heatmap_bytes": spai_result["heatmap_bytes"],  # Store heatmap for UI display
