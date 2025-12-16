@@ -21,7 +21,7 @@ from classifier import create_classifier_from_config
 from detector import OSINTDetector
 from spai_detector import SPAIDetector
 
-st.set_page_config(page_title="Deepfake Detector", layout="wide", page_icon="🕵️‍♂️")
+st.set_page_config(page_title="NexInspect", layout="wide", page_icon="🔍")
 
 # Cache SPAI model to avoid reloading on every inference (2GB+ model)
 @st.cache_resource
@@ -70,7 +70,7 @@ tab1, tab2 = st.tabs(["🔍 Detection", "📊 Evaluation"])
 
 # ───────────────────────── Tab 1: Single image ─────────────────────────
 with tab1:
-    st.header("🕵️‍♂️ Deepfake Detection Chat")
+    st.header("💬 Analysis Chat")
 
     # Model configuration uploader (in sidebar or expander)
     with st.expander("⚙️ Model Configuration", expanded=False):

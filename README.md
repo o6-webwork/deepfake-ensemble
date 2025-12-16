@@ -1,4 +1,4 @@
-# OSINT Deepfake Detection System
+# NexInspect
 
 Advanced deepfake detection system combining SPAI (Spectral AI-Generated Image Detector) with Vision-Language Models for comprehensive image authenticity analysis.
 
