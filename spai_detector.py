@@ -121,7 +121,7 @@ class SPAIDetector:
 
         # Build transform pipeline
         try:
-            self.transform = build_transform(self.config, is_train=False)
+            self.transform = build_transform(is_train=False, config=self.config)
         except Exception as e:
             raise RuntimeError(f"Failed to build SPAI transform: {e}")
 
@@ -169,7 +169,7 @@ class SPAIDetector:
         config.freeze()
 
         # Rebuild transform with updated config
-        transform = build_transform(config, is_train=False)
+        transform = build_transform(is_train=False, config=config)
 
         # Load image
         try:
@@ -177,9 +177,10 @@ class SPAIDetector:
         except Exception as e:
             raise ValueError(f"Failed to load image: {e}")
 
-        # Preprocess
+        # Preprocess - albumentations requires named 'image=' argument
         try:
-            tensor = transform(pil_image).unsqueeze(0).to(self.device)
+            img_np = np.array(pil_image)
+            tensor = transform(image=img_np)["image"].unsqueeze(0).to(self.device)
         except Exception as e:
             raise RuntimeError(f"Failed to preprocess image: {e}")
 
@@ -205,7 +206,8 @@ class SPAIDetector:
                 heatmap_bytes = self._generate_blended_heatmap(
                     tensor,
                     pil_image,
-                    alpha
+                    alpha,
+                    config
                 )
             except Exception as e:
                 logger.warning(f"Heatmap generation failed: {e}. Continuing without heatmap.")
@@ -227,21 +229,19 @@ class SPAIDetector:
         self,
         tensor: torch.Tensor,
         original_image: Image.Image,
-        alpha: float
+        alpha: float,
+        config
     ) -> bytes:
         """
-        Generate blended attention overlay.
+        Generate blended attention overlay using the SPAI model's export mechanism.
 
-        Creates a semi-transparent heatmap showing regions with spectral anomalies,
-        blended with the original image using cv2.addWeighted.
-
-        This matches the implementation in spai/app.py create_transparent_overlay().
+        Matches the implementation in spai/app.py which uses export_dirs parameter.
 
         Args:
             tensor: Model input tensor
             original_image: Original PIL Image
-            alpha: Transparency weight (0.0-1.0)
-                   0.6 = 60% original, 40% heatmap
+            alpha: Transparency weight (0.0-1.0, 0.6 = 60% original, 40% heatmap)
+            config: SPAI config with RESOLUTION_MODE = "arbitrary"
 
         Returns:
             PNG bytes of blended overlay
@@ -249,98 +249,71 @@ class SPAIDetector:
         Raises:
             RuntimeError: If heatmap generation fails
         """
+        import tempfile
+
         try:
-            # Get attention maps from model
-            # Note: This assumes the SPAI model has a get_attention_maps method
-            # If not available, we'll need to hook into the model's internals
-            with torch.no_grad():
-                # Attempt to get attention maps
-                # This may need adjustment based on actual SPAI model architecture
-                if hasattr(self.model, 'get_attention_maps'):
-                    attention_maps = self.model.get_attention_maps(tensor)
-                else:
-                    # Fallback: run inference again and extract attention from hooks
-                    logger.warning("Model doesn't expose get_attention_maps, using fallback")
-                    attention_maps = self._extract_attention_fallback(tensor)
+            # Create temporary directory for model's export_dirs output
+            with tempfile.TemporaryDirectory() as temp_export_dir:
+                export_path = Path(temp_export_dir)
 
-            # Aggregate attention across layers/heads
-            # Shape typically: [batch, layers, height, width] or similar
-            if attention_maps.dim() == 4:
-                aggregated = attention_maps.mean(dim=1).squeeze(0)  # Average over layers
-            elif attention_maps.dim() == 3:
-                aggregated = attention_maps.mean(dim=0)  # Average over layers/heads
-            else:
-                aggregated = attention_maps.squeeze()
+                # Run model with export_dirs to get attention masks
+                # This matches spai/app.py lines 146-152
+                with torch.no_grad():
+                    if config.MODEL.RESOLUTION_MODE == "arbitrary":
+                        # Model returns (output, attention_masks) when export_dirs is provided
+                        output, attention_masks = self.model(
+                            x=[tensor],  # Note: wrapped in list with 'x=' parameter
+                            feature_extraction_batch_size=config.MODEL.FEATURE_EXTRACTION_BATCH,
+                            export_dirs=[export_path]
+                        )
+                    else:
+                        raise RuntimeError("RESOLUTION_MODE must be 'arbitrary' for heatmap generation")
 
-            # Resize to original image size
-            heatmap = torch.nn.functional.interpolate(
-                aggregated.unsqueeze(0).unsqueeze(0),
-                size=(original_image.height, original_image.width),
-                mode='bilinear',
-                align_corners=False
-            ).squeeze()
+                # Check if attention masks were generated
+                if not attention_masks or len(attention_masks) == 0:
+                    raise RuntimeError("Model did not return attention masks")
 
-            # Convert to numpy and normalize to 0-255
-            heatmap_np = heatmap.cpu().numpy()
-            heatmap_np = (heatmap_np - heatmap_np.min()) / (heatmap_np.max() - heatmap_np.min() + 1e-8)
-            heatmap_np = (heatmap_np * 255).clip(0, 255).astype(np.uint8)
+                mask_obj = attention_masks[0]
 
-            # Apply colormap (JET: red = suspicious, blue = normal)
-            heatmap_colored = cv2.applyColorMap(heatmap_np, cv2.COLORMAP_JET)
+                # Check if the overlay file was created by the model
+                if not hasattr(mask_obj, 'overlay') or not mask_obj.overlay or not mask_obj.overlay.exists():
+                    raise RuntimeError("Model did not generate overlay file")
 
-            # Convert BGR (OpenCV default) to RGB to match PIL
-            heatmap_colored = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
+                # Use create_transparent_overlay pattern from spai/app.py
+                # Convert Original PIL to OpenCV format (RGB)
+                background = np.array(original_image)
 
-            # Convert original PIL Image to numpy array
-            original_np = np.array(original_image)
+                # Load the Overlay/Heatmap from disk (generated by model)
+                foreground = cv2.imread(str(mask_obj.overlay))
 
-            # Ensure dimensions match
-            if heatmap_colored.shape[:2] != original_np.shape[:2]:
-                heatmap_colored = cv2.resize(
-                    heatmap_colored,
-                    (original_np.shape[1], original_np.shape[0]),
-                    interpolation=cv2.INTER_LINEAR
-                )
+                if foreground is None:
+                    raise RuntimeError(f"Failed to read overlay file at {mask_obj.overlay}")
 
-            # Blend using cv2.addWeighted (same as spai/app.py)
-            # alpha: weight of original (background)
-            # beta: weight of heatmap (foreground)
-            beta = 1.0 - alpha
-            blended = cv2.addWeighted(original_np, alpha, heatmap_colored, beta, 0)
+                # Convert BGR (OpenCV default) to RGB to match PIL
+                foreground = cv2.cvtColor(foreground, cv2.COLOR_BGR2RGB)
 
-            # Convert back to BGR for PNG encoding
-            blended_bgr = cv2.cvtColor(blended, cv2.COLOR_RGB2BGR)
+                # Resize Foreground to match Background exactly
+                if foreground.shape[:2] != background.shape[:2]:
+                    foreground = cv2.resize(foreground, (background.shape[1], background.shape[0]))
 
-            # Encode as PNG
-            success, png_bytes = cv2.imencode('.png', blended_bgr)
+                # Blend: alpha = weight of original, beta = weight of heatmap
+                beta = 1.0 - alpha
+                blended = cv2.addWeighted(background, alpha, foreground, beta, 0)
 
-            if not success:
-                raise RuntimeError("Failed to encode heatmap as PNG")
+                # Convert RGB to BGR for encoding
+                blended_bgr = cv2.cvtColor(blended, cv2.COLOR_RGB2BGR)
 
-            return png_bytes.tobytes()
+                # Encode as PNG
+                success, png_bytes = cv2.imencode('.png', blended_bgr)
+
+                if not success:
+                    raise RuntimeError("Failed to encode blended image as PNG")
+
+                return png_bytes.tobytes()
 
         except Exception as e:
             raise RuntimeError(f"Heatmap generation failed: {e}")
 
-    def _extract_attention_fallback(self, tensor: torch.Tensor) -> torch.Tensor:
-        """
-        Fallback method to extract attention if model doesn't expose it directly.
-
-        This is a placeholder - actual implementation depends on SPAI model architecture.
-        """
-        # For now, return a dummy attention map based on model output gradients
-        # TODO: Implement proper attention extraction based on SPAI architecture
-        logger.warning("Using dummy attention map - implement proper extraction")
-
-        # Create a simple gradient-based attention map
-        tensor.requires_grad_(True)
-        output = self.model(tensor)
-        output.backward()
-
-        # Use input gradients as proxy for attention
-        attention = tensor.grad.abs().mean(dim=1)  # Average over channels
-
-        return attention
 
     def _map_score_to_tier(self, score: float) -> str:
         """

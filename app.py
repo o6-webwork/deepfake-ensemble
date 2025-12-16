@@ -447,7 +447,7 @@ Blue/cool regions show normal spectral distributions.
 - SPAI Prediction: {debug.get('spai_prediction', 'N/A')}
 - SPAI Tier: {debug.get('spai_tier', 'N/A')}
 
-**OSINT Context Applied:** {debug['context_applied'].capitalize()}
+**OSINT Context Applied:** {debug.get('context_applied', 'none').capitalize()}
 """
                     # Add VLM-specific debug info only if in assisted mode
                     if detection_mode == "spai_assisted":
@@ -530,15 +530,8 @@ Blue/cool regions show normal spectral distributions.
                 error_msg = f"❌ **Error during OSINT detection:**\n```\n{str(e)}\n```"
                 st.session_state.messages.append({"role": "assistant", "content": error_msg})
                 st.error(f"Detection failed: {str(e)}")
-
-                # Fallback to old method
-                result = analyze_single_image(
-                    analysis_image, PROMPTS, SYSTEM_PROMPT, detect_model_key
-                )
-                assistant_msg = f"**Model:** {detect_model_display}\n\n**Analysis:**\n{result['analysis']}\n\n**Classification:** {result['classification']} (score={result['score']})"
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": assistant_msg}
-                )
+                import traceback
+                st.error(traceback.format_exc())
 
         st.rerun()
 

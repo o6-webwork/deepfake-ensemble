@@ -2,10 +2,12 @@
 
 ## Overview
 
-Replace the current forensic analysis system (ELA/FFT) with SPAI (Spectral AI-Generated Image Detector) to provide more reliable deepfake detection with two operational modes:
+**Completely replace** the current forensic analysis system (ELA/FFT) with SPAI (Spectral AI-Generated Image Detector) to provide more reliable deepfake detection with two operational modes:
 
 1. **Standalone SPAI Mode**: SPAI acts as the sole detector (fast, reliable, no VLM needed)
 2. **SPAI-Assisted VLM Mode**: SPAI provides spectral analysis to enhance VLM reasoning
+
+**Important**: This branch **completely removes** all ELA/FFT analysis code. The `vlm_only` mode is removed - only SPAI-based detection remains.
 
 ## Current System Architecture
 
@@ -52,6 +54,18 @@ class OSINTDetector:
 ```
 
 ## SPAI Integration Architecture
+
+### Removed: forensics.py
+
+The entire `forensics.py` module (645 lines) will be **deleted**:
+- ❌ `ArtifactGenerator` class
+- ❌ `generate_ela()` method
+- ❌ `generate_fft()` method
+- ❌ `generate_fft_preprocessed()` method
+- ❌ `compute_ela_variance()` method
+- ❌ All ELA/FFT logic
+
+This is a **breaking change** - old evaluation code using ELA/FFT will not work on this branch.
 
 ### New Module: spai_detector.py
 
@@ -132,16 +146,25 @@ class SPAIDetector:
     def _generate_attention_heatmap(
         self,
         tensor: torch.Tensor,
-        original_image: Image.Image
+        original_image: Image.Image,
+        alpha: float = 0.6
     ) -> bytes:
         """
-        Generate attention overlay heatmap.
+        Generate attention overlay heatmap with transparent blending.
 
         Uses model's internal attention weights to highlight suspicious regions.
-        Blends heatmap with original image (60% original, 40% heatmap).
+        Blends heatmap with original image using configurable alpha.
+
+        This matches the blending approach from spai/app.py create_transparent_overlay().
+
+        Args:
+            tensor: Input tensor passed to model
+            original_image: Original PIL Image
+            alpha: Transparency weight (0.0-1.0). Higher = more original visible.
+                   Default 0.6 means 60% original, 40% heatmap.
 
         Returns:
-            PNG-encoded bytes of the blended overlay
+            PNG-encoded bytes of the blended overlay (RGB format for VLM display)
         """
         # Extract attention weights from model
         attention_maps = self.model.get_attention_maps(tensor)
@@ -156,16 +179,25 @@ class SPAIDetector:
             mode='bilinear'
         ).squeeze()
 
-        # Normalize to 0-255 and apply colormap
+        # Normalize to 0-255 and apply colormap (JET: red=suspicious, blue=normal)
         heatmap_np = (heatmap.cpu().numpy() * 255).astype(np.uint8)
         heatmap_colored = cv2.applyColorMap(heatmap_np, cv2.COLORMAP_JET)
 
-        # Blend with original
-        original_np = cv2.cvtColor(np.array(original_image), cv2.COLOR_RGB2BGR)
-        blended = cv2.addWeighted(original_np, 0.6, heatmap_colored, 0.4, 0)
+        # Convert BGR (OpenCV default) to RGB to match PIL
+        heatmap_colored = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
+
+        # Blend with original using cv2.addWeighted (same as spai/app.py)
+        # alpha: weight of original image (background)
+        # beta (1-alpha): weight of heatmap (foreground)
+        original_np = np.array(original_image)
+        beta = 1.0 - alpha
+        blended = cv2.addWeighted(original_np, alpha, heatmap_colored, beta, 0)
+
+        # Convert back to BGR for PNG encoding
+        blended_bgr = cv2.cvtColor(blended, cv2.COLOR_RGB2BGR)
 
         # Encode as PNG
-        success, png_bytes = cv2.imencode('.png', blended)
+        success, png_bytes = cv2.imencode('.png', blended_bgr)
         return png_bytes.tobytes()
 
     def _format_analysis(

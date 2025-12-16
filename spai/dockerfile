@@ -1,0 +1,30 @@
+FROM python:3.11-slim
+
+# Install system dependencies for OpenCV and Git (for CLIP)
+# FIXED: Replaced 'libgl1-mesa-glx' with 'libgl1' for Debian 12 support
+RUN apt-get update && apt-get install -y \
+    git \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements and install python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Streamlit and other UI tools
+RUN pip install --no-cache-dir streamlit pandas
+
+# Copy the source code
+COPY . /app
+
+# Set PYTHONPATH so the 'spai' module is importable
+ENV PYTHONPATH=/app
+
+# Expose Streamlit port
+EXPOSE 8502
+
+# Command to run the app
+CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0", "--server.port=8502"]
