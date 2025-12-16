@@ -167,41 +167,54 @@ class SPAIDetector:
             ValueError: If image cannot be loaded
             RuntimeError: If inference fails
         """
+        import time
+        total_start = time.time()
+
         # Clone config and set resolution
+        t0 = time.time()
         config = self.config.clone()
         config.defrost()
         config.TEST.MAX_SIZE = max_size  # None = original resolution
         if generate_heatmap:
             config.MODEL.RESOLUTION_MODE = "arbitrary"  # Required for attention extraction
         config.freeze()
+        print(f"⏱️ Config setup: {time.time() - t0:.3f}s")
 
         # Rebuild transform with updated config
+        t0 = time.time()
         transform = build_transform(is_train=False, config=config)
+        print(f"⏱️ Build transform: {time.time() - t0:.3f}s")
 
         # Clear CUDA cache if using GPU (improves performance)
         if self.device.type == "cuda":
             torch.cuda.empty_cache()
 
         # Load image
+        t0 = time.time()
         try:
             pil_image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
         except Exception as e:
             raise ValueError(f"Failed to load image: {e}")
+        print(f"⏱️ Load image: {time.time() - t0:.3f}s")
 
         # Preprocess - albumentations requires named 'image=' argument
+        t0 = time.time()
         try:
             img_np = np.array(pil_image)
             tensor = transform(image=img_np)["image"].unsqueeze(0).to(self.device)
         except Exception as e:
             raise RuntimeError(f"Failed to preprocess image: {e}")
+        print(f"⏱️ Preprocess: {time.time() - t0:.3f}s")
 
         # Run inference
+        t0 = time.time()
         try:
             with torch.no_grad():
                 output = self.model(tensor)
                 score = torch.sigmoid(output).item()  # Convert logits to probability
         except Exception as e:
             raise RuntimeError(f"SPAI inference failed: {e}")
+        print(f"⏱️ Inference (no heatmap): {time.time() - t0:.3f}s")
 
         # Determine prediction and confidence
         prediction = "AI Generated" if score >= 0.5 else "Real"
@@ -213,6 +226,7 @@ class SPAIDetector:
         # Generate heatmap if requested
         heatmap_bytes = None
         if generate_heatmap:
+            t0 = time.time()
             try:
                 heatmap_bytes = self._generate_blended_heatmap(
                     tensor,
@@ -220,12 +234,16 @@ class SPAIDetector:
                     alpha,
                     config
                 )
+                print(f"⏱️ Heatmap generation: {time.time() - t0:.3f}s")
             except Exception as e:
                 logger.warning(f"Heatmap generation failed: {e}. Continuing without heatmap.")
                 heatmap_bytes = None
 
         # Format analysis text
         analysis_text = self._format_analysis(score, prediction, confidence, tier)
+
+        total_time = time.time() - total_start
+        print(f"⏱️ TOTAL SPAI analyze(): {total_time:.3f}s")
 
         return {
             "spai_score": score,
@@ -261,6 +279,7 @@ class SPAIDetector:
             RuntimeError: If heatmap generation fails
         """
         import tempfile
+        import time
 
         try:
             # Create temporary directory for model's export_dirs output
@@ -269,6 +288,7 @@ class SPAIDetector:
 
                 # Run model with export_dirs to get attention masks
                 # This matches spai/app.py lines 146-152
+                t0 = time.time()
                 with torch.no_grad():
                     if config.MODEL.RESOLUTION_MODE == "arbitrary":
                         # Model returns (output, attention_masks) when export_dirs is provided
@@ -277,6 +297,7 @@ class SPAIDetector:
                             feature_extraction_batch_size=config.MODEL.FEATURE_EXTRACTION_BATCH,
                             export_dirs=[export_path]
                         )
+                        print(f"  ⏱️ Model forward pass with export_dirs: {time.time() - t0:.3f}s")
                     else:
                         raise RuntimeError("RESOLUTION_MODE must be 'arbitrary' for heatmap generation")
 
