@@ -707,7 +707,13 @@ with tab2:
             for model_key in models_to_run:
                 model_config = MODEL_CONFIGS[model_key]
                 model_display = model_config["display_name"]
-                st.write(f"### Running model: {model_display}")
+
+                # Show appropriate header based on detection mode
+                if eval_detection_mode == "spai_standalone":
+                    st.write(f"### Running SPAI Standalone (Spectral Analysis Only)")
+                else:
+                    st.write(f"### Running model: {model_display}")
+
                 per_image_results = []
 
                 for i, img_file in enumerate(eval_images):
