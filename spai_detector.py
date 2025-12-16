@@ -257,6 +257,7 @@ class SPAIDetector:
 
         total_time = time.time() - total_start
         print(f"⏱️ TOTAL SPAI analyze(): {total_time:.3f}s")
+        print(f"{'='*60}")
 
         return {
             "spai_score": score,
@@ -264,7 +265,11 @@ class SPAIDetector:
             "spai_confidence": confidence,
             "tier": tier,
             "heatmap_bytes": heatmap_bytes,
-            "analysis_text": analysis_text
+            "analysis_text": analysis_text,
+            "timing": {  # Add timing data to result for UI display
+                "total": total_time,
+                "device": str(self.device)
+            }
         }
 
     def _blend_heatmap_from_masks(

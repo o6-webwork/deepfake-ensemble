@@ -438,13 +438,20 @@ Enable Debug Mode to see detailed SPAI scores.
                 )
 
                 # Run detection with SPAI parameters
+                import time
+                detection_start = time.time()
                 result = detector.detect(
                     img_bytes,
                     debug=st.session_state.debug_mode
                 )
+                detection_time = time.time() - detection_start
 
                 # Store result
                 st.session_state.osint_result = result
+
+                # Show timing in UI (temporary for debugging)
+                if result.get('timing'):
+                    st.success(f"⏱️ Detection completed in {detection_time:.2f}s (SPAI: {result['timing']['total']:.2f}s on {result['timing']['device']})")
 
                 # Store SPAI heatmap for display (always generated now)
                 st.session_state.forensic_artifacts = None  # Clear old forensics
