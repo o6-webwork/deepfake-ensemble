@@ -1075,24 +1075,27 @@ with tab2:
     else:
         # Model selection with Load All button
         col1, col2 = st.columns([4, 1])
+
+        # Determine default value for multiselect
+        if 'eval_selected_models' not in st.session_state:
+            st.session_state['eval_selected_models'] = []
+
         with col1:
             model_multiselect = st.multiselect(
                 "Select models to evaluate",
                 options=list(display_to_model_key.keys()),
-                default=[],  # Default to none
-                help="Select one or more models to evaluate. Click 'Load All' to select all available models."
+                default=st.session_state['eval_selected_models'],
+                help="Select one or more models to evaluate. Click 'Load All' to select all available models.",
+                key="eval_model_multiselect"
             )
         with col2:
             st.write("")  # Spacing to align button
             if st.button("📋 Load All", help="Select all available models"):
-                st.session_state['load_all_models'] = True
+                st.session_state['eval_selected_models'] = list(display_to_model_key.keys())
                 st.rerun()
 
-        # Apply Load All if button was clicked
-        if st.session_state.get('load_all_models', False):
-            model_multiselect = list(display_to_model_key.keys())
-            st.session_state['load_all_models'] = False
-
+        # Update session state with current selection
+        st.session_state['eval_selected_models'] = model_multiselect
         models_to_run = [display_to_model_key[d] for d in model_multiselect]
 
     if eval_images and gt_file and models_to_run and st.button("🚀 Run Evaluation"):
