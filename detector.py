@@ -628,7 +628,9 @@ Answer with ONLY the single letter A or B."""
             # Parse verdict logprobs
             verdict_result = self._parse_verdict(response_2)
 
-            req2_tokens = len(verdict_prompt.split())
+            # Request 2 tokens = Request 1 output + verdict prompt (KV-cache reuses system + images)
+            # Estimate: 1 token ≈ 4 chars for text
+            req2_tokens = len(analysis_text) // 4 + len(verdict_prompt) // 4
 
         except Exception as e:
             req2_time = time.time() - req2_start
