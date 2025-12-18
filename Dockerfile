@@ -48,7 +48,10 @@ COPY --chown=appuser:appuser spai_detector.py .
 COPY --chown=appuser:appuser cloud_providers.py .
 COPY --chown=appuser:appuser generate_report_updated.py .
 COPY --chown=appuser:appuser models.json.example .
-COPY --chown=appuser:appuser prompts.yaml .
+COPY --chown=appuser:appuser prompt_version.py .
+
+# Copy prompts directory (file-per-version system)
+COPY --chown=appuser:appuser prompts/ ./prompts/
 
 # Copy SPAI module and required subdirectories
 COPY --chown=appuser:appuser spai/ ./spai/
