@@ -16,12 +16,14 @@ This system provides two detection modes optimized for OSINT analysis of militar
 - **OSINT context awareness**: Specialized protocols for military, disaster, and propaganda scenarios
 - **Visual explanations**: Attention heatmaps showing suspicious regions with warm color highlighting
 - **Batch evaluation**: Process multiple images with configurable parameters and audit trail
+- **Analytics dashboard**: Interactive visualization and PDF reporting for comparing model/prompt performance
 
 ### Technical Features
 - **GPU-accelerated inference**: ~5 seconds per image on NVIDIA GPUs
 - **Model caching**: Instant subsequent inferences after first load
 - **Docker deployment**: Full containerization with GPU support
 - **Multiple VLM providers**: Support for vLLM, OpenAI, Anthropic, and Google Gemini
+- **Prompt version control**: File-per-version system with easy rollback and comparison
 - **Excel reporting**: Comprehensive evaluation exports with config, metrics, and per-image results
 
 ## 🚀 Quick Start
@@ -101,6 +103,32 @@ This system provides two detection modes optimized for OSINT analysis of militar
 - **metrics**: Accuracy, precision, recall, F1, confusion matrix per model
 - **predictions**: Per-image results with analysis text
 
+### Analytics Dashboard
+
+1. Navigate to the "Analytics" tab
+2. Upload evaluation results (Excel files from Batch Evaluation)
+3. Explore interactive visualizations:
+   - **Overview & Metrics**: Comparative performance charts, confusion matrices, ROC analysis
+   - **Prediction Viewer**: Filter and inspect individual predictions by TP/TN/FP/FN
+4. Export comprehensive PDF reports with embedded charts
+
+**Features:**
+- **Multi-configuration comparison**: Compare different model/prompt versions side-by-side
+- **Interactive filtering**: Filter predictions by outcome type (TP/TN/FP/FN)
+- **Best performers**: Automatically highlights top configurations by F1 score
+- **PDF export**: Professional reports with embedded Plotly charts for offline review
+- **Performance metrics**: Accuracy, precision, recall, F1, confusion matrices, and more
+
+**Example workflow:**
+```bash
+# 1. Run batch evaluation (creates Excel file)
+# 2. Upload Excel to Analytics tab
+# 3. Compare prompt versions (e.g., v1.1.0 vs v1.2.0)
+# 4. Export PDF report for documentation
+```
+
+See [ANALYTICS_README.md](ANALYTICS_README.md) for detailed analytics documentation.
+
 ## 🎛️ Configuration
 
 ### VLM Model Configuration
@@ -138,6 +166,37 @@ The system includes specialized detection protocols for different scenarios:
 - **Disaster**: Floods, earthquakes, fires - handles chaotic scenes appropriately
 - **Propaganda**: Studio shots, news imagery - differentiates retouching from generation
 - **Auto**: Automatically applies all protocols
+
+### Prompt Version Control
+
+The system uses a file-per-version approach for managing analysis prompts:
+
+```bash
+# Show current active version
+python prompt_version.py info
+
+# List all available versions
+python prompt_version.py list
+
+# Switch to a different version
+python prompt_version.py activate 1.0.0
+
+# Create new version
+python prompt_version.py bump minor
+
+# Compare two versions
+python prompt_version.py diff 1.0.0 1.2.0
+```
+
+**Available versions:**
+- **v1.0.0**: Baseline with centralized verdict prompt
+- **v1.1.0**: Bias mitigation with structured 4-section report format
+- **v1.2.0**: Simplified tactical protocol (current - best performance)
+  - 79.2% accuracy, 83.3% recall, F1 0.842
+  - Field-based output: SCENE, HIGH_RISK_ARTIFACTS, LOGIC_FAILURES, STYLISTIC_FLAGS, SPAI_HOTSPOTS
+  - 5-step analysis: Scene Context, Human/Biological, Physics/Logic, Dramatic Tropes, Spectral Correlation
+
+All versions are immutable and stored in `prompts/` directory. The active version is `prompts/current.yaml`.
 
 ### Docker Configuration
 
