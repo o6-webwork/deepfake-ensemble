@@ -1,5 +1,5 @@
 {
-  "current_version": "1.1.0",
+  "current_version": "1.2.0",
   "description": "NexInspect OSINT Deepfake Detection Prompts",
   "versions": {
     "1.0.0": {
@@ -25,6 +25,20 @@
         "Update verdict prompt with senior analyst role making judgment call",
         "Add operational cost emphasis: high cost of missing AI-generated images",
         "Mitigate timidity bias causing high false negative rate"
+      ],
+      "active": false
+    },
+    "1.2.0": {
+      "file": "v1.2.0.yaml",
+      "date": "2025-12-19",
+      "author": "User",
+      "changes": [
+        "Simplified analysis protocol focused on practical OSINT indicators",
+        "Replace exhaustive checklist with 5-step tactical protocol",
+        "Add structured output format: SCENE, HIGH_RISK_ARTIFACTS, LOGIC_FAILURES, STYLISTIC_FLAGS, SPAI_HOTSPOTS",
+        "Focus on military/propaganda imagery tells: weapon ergonomics, dramatic tropes, waxy skin",
+        "Direct SPAI heatmap inspection protocol (RED/ORANGE regions)",
+        "Remove theoretical framework, keep actionable observations only"
       ],
       "active": true
     }
