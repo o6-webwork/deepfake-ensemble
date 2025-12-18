@@ -91,12 +91,21 @@ def load_evaluation_data_for_analytics(uploaded_file, config_name):
 
 
 def create_metrics_comparison(df):
-    """Create bar chart comparing key metrics."""
+    """Create bar chart comparing key metrics with dynamic sizing."""
+    # Calculate dynamic height based on number of configs and label length
+    n_configs = len(df)
+    max_label_length = df['Configuration'].astype(str).str.len().max()
+
+    # Dynamic spacing and sizing
+    base_height = 600
+    label_height_factor = min(max_label_length * 2, 150)  # Cap at 150px
+    dynamic_height = base_height + label_height_factor
+
     fig = make_subplots(
         rows=2, cols=2,
         subplot_titles=('Accuracy', 'Precision', 'Recall', 'F1 Score'),
-        vertical_spacing=0.12,
-        horizontal_spacing=0.1
+        vertical_spacing=0.15,
+        horizontal_spacing=0.12
     )
 
     metrics = ['Accuracy', 'Precision', 'Recall', 'F1 Score']
@@ -119,12 +128,24 @@ def create_metrics_comparison(df):
             row=row, col=col
         )
 
+        # Adjust tick angle based on label length
+        tick_angle = -45 if max_label_length > 15 else 0
+
+        fig.update_xaxes(
+            tickangle=tick_angle,
+            tickfont=dict(size=10),
+            row=row, col=col
+        )
         fig.update_yaxes(title_text="Percentage", range=[0, 105], row=row, col=col)
 
+    # Dynamic bottom margin based on label length
+    bottom_margin = max(80, min(label_height_factor, 180))
+
     fig.update_layout(
-        height=600,
+        height=dynamic_height,
         title_text="Performance Metrics Comparison",
-        showlegend=False
+        showlegend=False,
+        margin=dict(b=bottom_margin, t=60, l=50, r=50)
     )
 
     return fig
@@ -182,16 +203,35 @@ def create_confusion_matrix_comparison(df):
 
 
 def create_precision_recall_plot(df):
-    """Create precision-recall scatter plot."""
+    """Create precision-recall scatter plot with smart label positioning."""
+    # Calculate dynamic sizing based on number of configs
+    n_configs = len(df)
+    max_label_length = df['Configuration'].astype(str).str.len().max()
+
+    # Increase height if many configs or long labels
+    base_height = 500
+    if n_configs > 5 or max_label_length > 20:
+        base_height = 600
+
     fig = go.Figure()
+
+    # Use smart text positioning to avoid overlap
+    # For many configs, show labels on hover only
+    if n_configs > 6:
+        mode = 'markers'
+        show_text = False
+    else:
+        mode = 'markers+text'
+        show_text = True
 
     fig.add_trace(
         go.Scatter(
             x=df['Recall'] * 100,
             y=df['Precision'] * 100,
-            mode='markers+text',
+            mode=mode,
             text=df['Configuration'],
             textposition='top center',
+            textfont=dict(size=10),
             marker=dict(
                 size=15,
                 color=df['F1 Score'],
@@ -208,9 +248,10 @@ def create_precision_recall_plot(df):
         title="Precision-Recall Trade-off",
         xaxis_title="Recall (%)",
         yaxis_title="Precision (%)",
-        height=500,
+        height=base_height,
         xaxis=dict(range=[0, 105]),
-        yaxis=dict(range=[0, 105])
+        yaxis=dict(range=[0, 105]),
+        margin=dict(t=60, b=60, l=60, r=60)
     )
 
     return fig
