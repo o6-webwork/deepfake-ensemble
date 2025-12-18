@@ -1,6 +1,24 @@
 # Deepfake Detection Prompt Configuration
 # This file contains all system and analysis prompts used by the detector
 
+# ==================== Prompt Version Control ====================
+metadata:
+  version: "1.0.0"
+  last_updated: "2024-12-18"
+  description: "NexInspect OSINT Deepfake Detection Prompts"
+
+  # Version Changelog
+  changelog:
+    - version: "1.0.0"
+      date: "2024-12-18"
+      changes:
+        - "Initial versioned release"
+        - "Centralized verdict_prompt from detector.py"
+        - "Established baseline for prompt version control"
+        - "Added metadata section for tracking"
+      author: "Claude Code"
+
+# ==================== System Prompts ====================
 system_prompts:
   # Base system prompt (used for SPAI-assisted mode)
   base: |

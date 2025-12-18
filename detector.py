@@ -56,13 +56,26 @@ class OSINTDetector:
 
     @classmethod
     def _load_prompts(cls, prompts_path: str = "prompts.yaml") -> dict:
-        """Load prompt templates from YAML configuration file."""
+        """
+        Load prompt templates from YAML configuration file.
+
+        Returns:
+            dict: Prompts dictionary with metadata section for version tracking
+        """
         yaml_path = Path(prompts_path)
         if not yaml_path.exists():
             raise FileNotFoundError(f"Prompts file not found: {prompts_path}")
 
         with open(yaml_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+            prompts = yaml.safe_load(f)
+
+        # Log prompt version if metadata exists
+        if 'metadata' in prompts:
+            metadata = prompts['metadata']
+            print(f"📋 Loaded prompts version {metadata.get('version', 'unknown')} "
+                  f"(updated: {metadata.get('last_updated', 'unknown')})")
+
+        return prompts
 
     def __init__(
         self,
