@@ -157,10 +157,9 @@ class SPAIDetector:
             {
                 "spai_score": float,         # 0.0-1.0 (AI generation probability)
                 "spai_prediction": str,      # "Real" or "AI Generated"
-                "spai_confidence": float,    # 0.0-1.0 (confidence in prediction)
                 "tier": str,                 # "Authentic" / "Suspicious" / "Deepfake"
                 "heatmap_bytes": bytes,      # Blended overlay PNG (if requested)
-                "analysis_text": str         # Human-readable analysis report
+                "analysis_text": str         # Human-readable analysis with confidence levels
             }
 
         Raises:
@@ -245,15 +244,14 @@ class SPAIDetector:
         except Exception as e:
             raise RuntimeError(f"SPAI inference failed: {e}")
 
-        # Determine prediction and confidence
+        # Determine prediction
         prediction = "AI Generated" if score >= 0.5 else "Real"
-        confidence = score if score >= 0.5 else (1.0 - score)
 
         # Map to three-tier system
         tier = self._map_score_to_tier(score)
 
         # Format analysis text
-        analysis_text = self._format_analysis(score, prediction, confidence, tier)
+        analysis_text = self._format_analysis(score, prediction, tier)
 
         total_time = time.time() - total_start
         print(f"⏱️ TOTAL SPAI analyze(): {total_time:.3f}s")
@@ -262,7 +260,6 @@ class SPAIDetector:
         return {
             "spai_score": score,
             "spai_prediction": prediction,
-            "spai_confidence": confidence,
             "tier": tier,
             "heatmap_bytes": heatmap_bytes,
             "analysis_text": analysis_text,
@@ -357,7 +354,6 @@ class SPAIDetector:
         self,
         score: float,
         prediction: str,
-        confidence: float,
         tier: str
     ) -> str:
         """
@@ -366,7 +362,6 @@ class SPAIDetector:
         Args:
             score: SPAI score (0.0-1.0)
             prediction: "Real" or "AI Generated"
-            confidence: Confidence level (0.0-1.0)
             tier: Risk tier classification
 
         Returns:
@@ -376,8 +371,6 @@ class SPAIDetector:
 
 Prediction: {prediction}
 SPAI Score: {score:.3f} (0.0=Real, 1.0=AI-Generated)
-Confidence: {confidence:.1%}
-Risk Tier: {tier}
 
 Spectral Analysis Summary:
 The image's frequency spectrum was analyzed using masked feature modeling with
