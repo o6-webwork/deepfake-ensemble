@@ -77,7 +77,7 @@ Visit `http://localhost:8501` to start detecting deepfakes!
 
 ## 🚀 What's New in v3.0
 
-### Recent Improvements (December 2024)
+### Recent Improvements (December 2025)
 
 **1. Fixed GAPL Integration** (+23.2% accuracy improvement)
 - Corrected class import error (`GAPLForensicsPipeline`)
