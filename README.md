@@ -15,23 +15,42 @@ A production-ready AI-generated image detection pipeline combining **4 complemen
 
 ## 🎯 Quick Start
 
+### Automated Setup (Recommended)
+
+**Linux/Mac:**
 ```bash
-# Clone repository
 git clone https://github.com/o6-webwork/deepfake-ensemble.git
 cd deepfake-ensemble
+chmod +x setup.sh
+./setup.sh
+```
 
-# Install dependencies
-pip install -r requirements.txt
+**Windows:**
+```bash
+git clone https://github.com/o6-webwork/deepfake-ensemble.git
+cd deepfake-ensemble
+setup.bat
+```
 
-# Download SPAI model weights (~2GB)
-# Visit: https://drive.google.com/file/d/1vvXmZqs6TVJdj8iF1oJ4L_fcgdQrp_YI/view
-# Place downloaded spai.pth in: spai/weights/spai.pth
+The setup script will:
+- ✅ Check Python installation
+- ✅ Create virtual environment
+- ✅ Install all dependencies
+- ✅ Check for SPAI weights
+- ✅ Create .env configuration
 
-# Configure API keys (optional, for VLM modes)
-cp .env.example .env
-# Edit .env with your API keys
+**Then download SPAI weights** (~2GB):
+1. Visit: https://drive.google.com/file/d/1vvXmZqs6TVJdj8iF1oJ4L_fcgdQrp_YI/view
+2. Place at: `spai/weights/spai.pth`
 
-# Launch web interface
+**Launch:**
+```bash
+# Linux/Mac
+source venv/bin/activate
+streamlit run app.py
+
+# Windows
+venv\Scripts\activate
 streamlit run app.py
 ```
 
@@ -309,6 +328,57 @@ streamlit run app.py
 ```
 
 Visit `http://localhost:8501` in your browser!
+
+---
+
+## 🐳 Docker Deployment (Alternative)
+
+For containerized deployment with GPU support:
+
+**1. Prerequisites**
+- Docker and Docker Compose installed
+- NVIDIA Docker runtime (for GPU acceleration)
+- SPAI weights downloaded to `spai/weights/spai.pth`
+
+**2. Download SPAI Weights**
+```bash
+# Create directory
+mkdir -p spai/weights
+
+# Download from Google Drive and place at spai/weights/spai.pth
+# https://drive.google.com/file/d/1vvXmZqs6TVJdj8iF1oJ4L_fcgdQrp_YI/view
+```
+
+**3. Configure Environment (Optional)**
+```bash
+# Create .env file for API keys
+cp .env.example .env
+
+# Edit .env with your keys
+nano .env
+```
+
+**4. Launch with Docker Compose**
+```bash
+docker-compose up -d
+```
+
+**5. Access Application**
+- Web UI: http://localhost:8501
+- View logs: `docker-compose logs -f`
+- Stop: `docker-compose down`
+
+**Docker Features:**
+- ✅ GPU acceleration (NVIDIA runtime)
+- ✅ Automatic restarts
+- ✅ Volume mounts for weights and results
+- ✅ Resource limits (4-8GB RAM, 4 CPUs)
+- ✅ Access to external VLM servers on local network
+
+**Note**: The container can access:
+- External VLM servers on your local network (e.g., `http://100.64.0.x:8000`)
+- Cloud APIs (OpenAI, Anthropic, Gemini)
+- Use `host.docker.internal` instead of `localhost` for host services (Mac/Windows)
 
 ---
 

@@ -25,8 +25,10 @@ services:
       - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
       # SPAI will use GPU if available
       - CUDA_VISIBLE_DEVICES=0
-      # Cloud API Keys
-      - GEMINI_API_KEY=AIzaSyCegojTzzjDzD7MYNxebMFs4Znt5KAoUUM
+      # Cloud API Keys (optional - add your keys here or use .env file)
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # - GEMINI_API_KEY=${GEMINI_API_KEY}
     restart: unless-stopped
     networks:
       - deepfake-network
