@@ -678,13 +678,6 @@ MIT License - see [LICENSE](LICENSE) file
 
 ---
 
-## 💬 Contact & Support
-
-- **Issues**: [GitHub Issues](https://github.com/o6-webwork/deepfake-ensemble/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/o6-webwork/deepfake-ensemble/discussions)
-
----
-
 ## 🙏 Acknowledgments
 
 - SPAI research team for spectral analysis framework
