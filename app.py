@@ -391,7 +391,7 @@ model_key_to_display = {
 display_to_model_key = {v: k for k, v in model_key_to_display.items()}
 
 # main tabs
-tab1, tab2, tab3 = st.tabs(["🔍 Detection", "📊 Evaluation", "📈 Analytics"])
+tab1, tab2, tab3, tab4 = st.tabs(["🔍 Detection", "📦 Batch Detection", "📊 Evaluation", "📈 Analytics"])
 
 # ───────────────────────── Tab 1: Single image ─────────────────────────
 with tab1:
@@ -1078,8 +1078,241 @@ Enable Debug Mode to see detailed SPAI scores.
         st.session_state.messages.append({"role": "assistant", "content": response})
         st.rerun()
 
-# ───────────────────────── Tab 2: Batch Evaluation ─────────────────────────
+# ───────────────────────── Tab 2: Batch Detection ─────────────────────────
 with tab2:
+    st.header("📦 Batch Detection")
+    st.markdown("Process multiple images without ground truth labels for auditing and analysis")
+
+    # Image upload (no ground truth CSV needed)
+    batch_images = st.file_uploader(
+        "Upload Images",
+        type=["jpg", "jpeg", "png", "webp"],
+        accept_multiple_files=True,
+        key="batch_detection_images"
+    )
+
+    # Settings expander
+    with st.expander("⚙️ Detection Settings", expanded=True):
+        # OSINT Context
+        batch_context = st.selectbox(
+            "OSINT Context",
+            options=["auto", "military", "disaster", "propaganda"],
+            index=0,
+            key="batch_context",
+            format_func=lambda x: {
+                "auto": "Auto (Let model infer)",
+                "military": "Military (CASE A: Uniforms, parades, formations)",
+                "disaster": "Disaster (CASE B: Floods, fires, rubble, damage)",
+                "propaganda": "Propaganda (CASE C: Studio shots, state media)"
+            }[x]
+        )
+
+        # Detection Mode
+        batch_detection_mode = st.radio(
+            "Detection Method",
+            options=["enhanced_3layer", "spai_standalone", "gapl_standalone", "spai_assisted"],
+            index=0,
+            key="batch_detection_mode",
+            format_func=lambda x: {
+                "enhanced_3layer": "Enhanced 4-Layer (Texture + GAPL + SPAI + VLM) - Best accuracy",
+                "spai_standalone": "SPAI Only (Fast spectral analysis)",
+                "gapl_standalone": "GAPL Only (High precision)",
+                "spai_assisted": "SPAI + VLM (Balanced)"
+            }[x]
+        )
+
+        # Model selection (for VLM-based modes)
+        if batch_detection_mode in ["spai_assisted", "enhanced_3layer"]:
+            batch_model_key = st.selectbox(
+                "VLM Model",
+                options=list(MODEL_CONFIGS.keys()),
+                format_func=lambda k: MODEL_CONFIGS[k]["display_name"],
+                key="batch_model_key"
+            )
+        else:
+            batch_model_key = None
+
+        # Watermark Mode
+        batch_watermark_mode = st.radio(
+            "Watermark Handling",
+            options=["ignore", "analyze"],
+            index=0,
+            key="batch_watermark_mode",
+            format_func=lambda x: "Ignore watermarks" if x == "ignore" else "Analyze watermarks"
+        )
+
+        # SPAI Resolution
+        batch_spai_resolution = st.selectbox(
+            "SPAI Resolution",
+            options=[512, 640, 1280, 2048, None],
+            index=2,
+            key="batch_spai_resolution",
+            format_func=lambda x: "None (use original)" if x is None else f"{x}px"
+        )
+
+    # Run Detection button
+    if batch_images and st.button("🚀 Run Batch Detection", type="primary"):
+        try:
+            per_image_results = []
+
+            # Load SPAI detector (cached)
+            spai_detector = load_spai_detector()
+
+            # Progress tracking
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            # Get model config
+            if batch_model_key:
+                model_config = MODEL_CONFIGS[batch_model_key]
+            else:
+                # For standalone modes, use a dummy config
+                model_config = {"display_name": "N/A"}
+
+            # Process each image
+            for idx, uploaded_file in enumerate(batch_images):
+                status_text.text(f"Processing {idx+1}/{len(batch_images)}: {uploaded_file.name}")
+
+                # Load image
+                img = Image.open(uploaded_file)
+
+                # Run detection
+                res = analyze_single_image(
+                    image=img,
+                    model_config=model_config,
+                    context=batch_context,
+                    watermark_mode=batch_watermark_mode,
+                    detection_mode=batch_detection_mode,
+                    spai_max_size=batch_spai_resolution,
+                    spai_overlay_alpha=0.6,
+                    spai_detector=spai_detector
+                )
+
+                # Extract results
+                classification = res["classification"]
+                confidence = res["confidence"]
+                tier = res["tier"]
+                verdict_token = res.get("verdict_token", "N/A")
+                analysis = res.get("analysis", "")
+
+                # Layer breakdowns (if enhanced mode)
+                layer1_verdict = res.get("layer1_verdict", "N/A")
+                layer1_confidence = res.get("layer1_confidence", "N/A")
+                layer2_verdict = res.get("layer2_verdict", "N/A")
+                layer2_confidence = res.get("layer2_confidence", "N/A")
+
+                # Store result
+                per_image_results.append({
+                    "filename": uploaded_file.name,
+                    "predicted_label": classification,
+                    "confidence": confidence,
+                    "tier": tier,
+                    "verdict_token": verdict_token,
+                    "texture_verdict": layer1_verdict,
+                    "texture_confidence": layer1_confidence,
+                    "gapl_verdict": layer2_verdict,
+                    "gapl_confidence": layer2_confidence,
+                    "analysis": analysis,
+                    "analysis_preview": analysis[:200] if analysis else "N/A"
+                })
+
+                # Update progress
+                progress = (idx + 1) / len(batch_images)
+                progress_bar.progress(progress)
+
+            # Clear progress indicators
+            status_text.empty()
+            progress_bar.empty()
+
+            # Display results
+            st.success(f"✅ Processed {len(batch_images)} images")
+
+            # Results summary
+            st.subheader("📊 Detection Summary")
+
+            # Count by classification
+            preds_df = pd.DataFrame(per_image_results)
+            real_count = (preds_df["predicted_label"] == "Real").sum()
+            ai_count = (preds_df["predicted_label"] == "AI Generated").sum()
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Images", len(batch_images))
+            with col2:
+                st.metric("Real", real_count)
+            with col3:
+                st.metric("AI Generated", ai_count)
+
+            # Tier breakdown
+            st.subheader("🎯 Confidence Tier Breakdown")
+            tier_counts = preds_df["tier"].value_counts()
+            st.bar_chart(tier_counts)
+
+            # Per-image results table
+            st.subheader("📋 Per-Image Results")
+
+            # Display columns selection
+            display_columns = ["filename", "predicted_label", "tier", "confidence", "verdict_token"]
+
+            if batch_detection_mode == "enhanced_3layer":
+                display_columns.extend(["texture_verdict", "gapl_verdict"])
+
+            st.dataframe(
+                preds_df[display_columns],
+                use_container_width=True,
+                hide_index=True
+            )
+
+            # Excel Export
+            st.subheader("💾 Export Results")
+
+            excel_buf = io.BytesIO()
+
+            with pd.ExcelWriter(excel_buf, engine="xlsxwriter") as writer:
+                # Sheet 1: Configuration
+                config_data = {
+                    "Parameter": [
+                        "Detection Mode",
+                        "OSINT Context",
+                        "Watermark Mode",
+                        "SPAI Resolution",
+                        "Timestamp",
+                        "Total Images"
+                    ],
+                    "Value": [
+                        batch_detection_mode,
+                        batch_context,
+                        batch_watermark_mode,
+                        str(batch_spai_resolution) if batch_spai_resolution else "Original",
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        len(batch_images)
+                    ]
+                }
+                config_df = pd.DataFrame(config_data)
+                config_df.to_excel(writer, sheet_name="config", index=False)
+
+                # Sheet 2: Predictions (all columns)
+                preds_df.to_excel(writer, sheet_name="predictions", index=False)
+
+            excel_buf.seek(0)
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"batch_detection_{timestamp}.xlsx"
+
+            st.download_button(
+                label="📥 Download Results (Excel)",
+                data=excel_buf.getvalue(),
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+        except Exception as e:
+            st.error(f"Batch detection failed: {e}")
+            import traceback
+            st.code(traceback.format_exc())
+
+# ───────────────────────── Tab 3: Batch Evaluation ─────────────────────────
+with tab3:
     st.header("📊 Batch Evaluation")
 
     eval_images = st.file_uploader(
@@ -1365,6 +1598,7 @@ with tab2:
                                 "gapl_verdict": res.get("layer2_verdict", "N/A"),  # Layer 2: GAPL
                                 "gapl_confidence": res.get("layer2_confidence", "N/A"),
                                 "analysis": analysis,
+                                "analysis_preview": analysis[:200] if analysis else "N/A",  # Preview (first 200 chars)
                             }
                         )
 
@@ -1604,8 +1838,8 @@ with tab2:
         except Exception as e:
             st.error(f"Evaluation failed: {e}")
 
-# ───────────────────────── Tab 3: Analytics ─────────────────────────
-with tab3:
+# ───────────────────────── Tab 4: Analytics ─────────────────────────
+with tab4:
     st.header("📈 Evaluation Analytics")
     st.markdown("Compare and analyze evaluation results with interactive visualizations and PDF export")
 
