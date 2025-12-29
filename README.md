@@ -641,9 +641,3 @@ This system is designed for research and OSINT analysis. While achieving 90.7% a
 - Comply with applicable laws and regulations
 
 **Not suitable for**: Automated content moderation without human review, legal evidence without expert validation, or any application where errors could cause significant harm.
-
----
-
-**Star ⭐ this repo if you find it useful!**
-
-Made with ❤️ for the OSINT and cybersecurity community
