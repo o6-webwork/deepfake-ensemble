@@ -117,6 +117,12 @@ def get_default_model_configs() -> dict:
         "model_name": "gemini-1.5-pro-latest",
         "provider": "gemini",
         "api_key": os.getenv("GEMINI_API_KEY", "")
+    },
+    "gemini-3-flash-preview": {
+        "display_name": "Gemini 3 Flash Preview (Cloud)",
+        "model_name": "gemini-3-flash-preview",
+        "provider": "gemini",
+        "api_key": os.getenv("GEMINI_API_KEY", "")
     }
 }
 

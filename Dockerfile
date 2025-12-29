@@ -49,6 +49,11 @@ COPY --chown=appuser:appuser cloud_providers.py .
 COPY --chown=appuser:appuser generate_report_updated.py .
 COPY --chown=appuser:appuser models.json.example .
 COPY --chown=appuser:appuser prompt_version.py .
+# Copy 3-layer forensics modules
+COPY --chown=appuser:appuser deepfake_detector.py .
+COPY --chown=appuser:appuser physics_forensics.py .
+COPY --chown=appuser:appuser texture_forensics.py .
+COPY --chown=appuser:appuser gapl_forensics.py .
 
 # Copy prompts directory (file-per-version system)
 COPY --chown=appuser:appuser prompts/ ./prompts/
@@ -60,6 +65,14 @@ COPY --chown=appuser:appuser spai/ ./spai/
 # Download spai.pth from: https://drive.google.com/file/d/1vvXmZqs6TVJdj8iF1oJ4L_fcgdQrp_YI/view
 # Place in: spai/weights/spai.pth before building the Docker image
 # The file should exist at: spai/weights/spai.pth
+
+# Copy GAPL module and pretrained weights
+COPY --chown=appuser:appuser gapl/ ./gapl/
+
+# NOTE: GAPL weights must be downloaded separately due to size (1.22 GB)
+# Download checkpoint.pt from: https://huggingface.co/AbyssLumine/GAPL/resolve/main/checkpoint.pt
+# Place in: gapl/pretrained/checkpoint.pt before building the Docker image
+# The file should exist at: gapl/pretrained/checkpoint.pt
 
 # Create necessary directories with correct ownership
 RUN mkdir -p results testing_files misc analysis_output && \

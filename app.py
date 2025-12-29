@@ -19,6 +19,10 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 from shared_functions import (
     analyze_single_image,
     chat_with_model,
@@ -450,13 +454,15 @@ with tab1:
         # Detection Mode Selector
         detection_mode = st.radio(
             "🔬 Detection Mode",
-            options=["spai_assisted", "spai_standalone"],
+            options=["spai_assisted", "enhanced_3layer", "spai_standalone", "gapl_standalone"],
             format_func=lambda x: {
                 "spai_assisted": "SPAI + VLM (Comprehensive, ~3s)",
-                "spai_standalone": "SPAI Only (Fast, ~50ms)"
+                "enhanced_3layer": "Enhanced 4-Layer (Texture + GAPL + SPAI + VLM, ~12-30s)",
+                "spai_standalone": "SPAI Only (Fast, ~50ms)",
+                "gapl_standalone": "GAPL Only (Generator-Aware, ~100-200ms)"
             }[x],
             index=0,
-            help="SPAI-assisted uses spectral analysis + VLM reasoning. SPAI-only is faster but less comprehensive."
+            help="Choose detection mode: SPAI (spectral analysis), GAPL (generator-aware prototypes), or combined modes with VLM reasoning."
         )
 
         # SPAI Configuration
@@ -478,8 +484,8 @@ with tab1:
             help="Alpha blending: 0.0 = pure heatmap, 1.0 = pure original. Default 0.6 = 60% original + 40% heatmap."
         )
 
-        # Watermark Mode Toggle (only for VLM mode)
-        if detection_mode == "spai_assisted":
+        # Watermark Mode Toggle (only for VLM modes)
+        if detection_mode in ["spai_assisted", "enhanced_3layer"]:
             watermark_mode = st.selectbox(
                 "🏷️ Watermark Handling",
                 options=["ignore", "analyze"],
@@ -492,18 +498,19 @@ with tab1:
             )
         else:
             watermark_mode = "ignore"
-            st.info("💡 Watermark analysis requires VLM mode. Switch to 'SPAI + VLM' to enable.")
+            st.info("💡 Watermark analysis requires VLM mode. Switch to 'SPAI + VLM' or 'Enhanced 4-Layer' to enable.")
 
-    # VLM model selector (disabled in standalone mode)
-    vlm_disabled = (detection_mode == "spai_standalone")
+    # VLM model selector (disabled in standalone modes)
+    vlm_disabled = (detection_mode in ["spai_standalone", "gapl_standalone"])
 
     if vlm_disabled:
+        mode_name = "SPAI" if detection_mode == "spai_standalone" else "GAPL"
         st.selectbox(
             "Select detection model",
-            ["(VLM disabled in SPAI standalone mode)"],
+            [f"(VLM disabled in {mode_name} standalone mode)"],
             index=0,
             disabled=True,
-            help="VLM is not used in SPAI standalone mode. Switch to 'SPAI + VLM' to enable model selection."
+            help=f"VLM is not used in {mode_name} standalone mode. Switch to 'SPAI + VLM' or 'Enhanced 4-Layer' to enable model selection."
         )
         detect_model_key = list(display_to_model_key.values())[0]  # Default (won't be used)
     else:
@@ -514,8 +521,8 @@ with tab1:
         )
         detect_model_key = display_to_model_key[detect_model_display]
 
-    # OSINT Context Selector (only for VLM mode)
-    if detection_mode == "spai_assisted":
+    # OSINT Context Selector (only for VLM modes)
+    if detection_mode in ["spai_assisted", "enhanced_3layer"]:
         osint_context = st.selectbox(
             "OSINT Context",
             options=["auto", "military", "disaster", "propaganda"],
@@ -658,9 +665,9 @@ Enable Debug Mode to see detailed SPAI scores.
                         tier = result['tier']
                         p_fake = result['confidence']  # detector.py returns P(fake) or "not available"
 
-                        # Handle confidence display
-                        if isinstance(p_fake, str):  # "not available"
-                            confidence_display = "Not available (logprobs not supported)"
+                        # Handle confidence display - check type for safety
+                        if not isinstance(p_fake, (int, float)):  # String "not available" or other non-numeric
+                            confidence_display = str(p_fake) if p_fake != "not available" else "Not available (logprobs not supported)"
                             # Visual tier indicator without confidence bar
                             if tier == "Deepfake":
                                 st.error(f"🚨 **{tier}** - AI Generated Probability: {confidence_display}")
@@ -669,7 +676,7 @@ Enable Debug Mode to see detailed SPAI scores.
                             else:
                                 st.success(f"✅ **{tier}** - AI Generated Probability: {confidence_display}")
                         else:
-                            # Visual confidence bar with color coding
+                            # Visual confidence bar with color coding (numeric confidence)
                             if tier == "Deepfake":
                                 st.error(f"🚨 **{tier}** - AI Generated Probability: {p_fake*100:.1f}%")
                             elif tier == "Suspicious":
@@ -817,7 +824,7 @@ Enable Debug Mode to see detailed SPAI scores.
                 if detection_mode == "spai_standalone":
                     # SPAI standalone mode - show only SPAI results with clear prediction
                     # Note: SPAI always returns numeric scores, but add safety check
-                    if isinstance(p_fake, (int, float)):
+                    if isinstance(p_fake, (int, float)) and p_fake_pct is not None:
                         spai_prediction = "AI-Generated" if p_fake >= 0.5 else "Real"
 
                         # Show probability in clearer format
@@ -838,6 +845,57 @@ Enable Debug Mode to see detailed SPAI scores.
 {reasoning}
 
 💡 *View SPAI attention heatmap in the dropdown below the image*
+"""
+                elif detection_mode == "gapl_standalone":
+                    # GAPL standalone mode - show only GAPL results
+                    if isinstance(p_fake, (int, float)) and p_fake_pct is not None:
+                        gapl_prediction = "AI-Generated" if p_fake >= 0.5 else "Real"
+
+                        # Show probability in clearer format
+                        if gapl_prediction == "AI-Generated":
+                            prob_display = f"**AI-Generated Probability:** {p_fake_pct:.1f}%"
+                        else:
+                            prob_display = f"**Real Probability:** {(100 - p_fake_pct):.1f}% (AI: {p_fake_pct:.1f}%)"
+                    else:
+                        gapl_prediction = "Unknown"
+                        prob_display = f"**Confidence:** {confidence_display}"
+
+                    assistant_msg = f"""**Detection Mode:** GAPL Standalone (Generator-Aware Prototype Learning)
+
+**{tier_emoji} GAPL Prediction: {gapl_prediction}**
+{prob_display}
+
+**Generator-Aware Analysis:**
+{reasoning}
+"""
+                elif detection_mode == "enhanced_3layer":
+                    # Enhanced 4-Layer mode - show all layers
+                    layer_agreement = result.get('layer_agreement', {})
+
+                    assistant_msg = f"""**Model:** {detect_model_display}
+**Detection Mode:** Enhanced 4-Layer (Texture + GAPL + SPAI + VLM)
+**OSINT Context:** {osint_context.capitalize()}
+
+**{tier_emoji} Final Verdict: {tier}**
+**AI Generated Probability:** {confidence_display}
+**Consensus:** {'✅ Yes' if layer_agreement.get('consensus', False) else '⚠️ Mixed Results'}
+
+### 📊 Layer-by-Layer Results:
+
+**🎨 Texture Forensics (Layer 1):** {layer_agreement.get('texture', 'N/A')}
+**🧬 GAPL Generator-Aware (Layer 2):** {layer_agreement.get('gapl', 'N/A')}
+**📊 SPAI Spectral Analysis (Layer 3):** {layer_agreement.get('spai', 'N/A')}
+**🤖 VLM Semantic Reasoning (Layer 4):** {layer_agreement.get('vllm', 'N/A')}
+
+---
+
+**📝 Detailed Analysis:**
+{reasoning}
+
+**SPAI Spectral Report:**
+```
+{result.get('spai_report', 'No SPAI report available')}
+```
 """
                 else:
                     # SPAI + VLM assisted mode - show comprehensive analysis
@@ -883,9 +941,10 @@ Enable Debug Mode to see detailed SPAI scores.
 ```
 
 **SPAI Spectral Analysis:**
-- SPAI Score: {debug.get('spai_score', 'N/A'):.4f} (AI generation probability)
+- Raw SPAI Score: {f"{debug.get('raw_spai_score', 0):.4f}" if isinstance(debug.get('raw_spai_score'), (int, float)) else 'N/A'} (AI generation probability)
+- Calibrated SPAI Score: {f"{debug.get('calibrated_spai_score', 0):.4f}" if isinstance(debug.get('calibrated_spai_score'), (int, float)) else 'N/A'} (after temperature scaling)
 - SPAI Prediction: {debug.get('spai_prediction', 'N/A')}
-- SPAI Tier: {debug.get('spai_tier', 'N/A')}
+- SPAI Tier: {debug.get('spai_tier') or debug.get('spai_tier_calibrated', 'N/A')}
 
 **OSINT Context Applied:** {debug.get('context_applied', 'none').capitalize()}
 """
@@ -925,7 +984,7 @@ Enable Debug Mode to see detailed SPAI scores.
                             assistant_msg += "\n*No logprobs available (not supported by this VLM provider)*"
 
                         # Show probabilities only if confidence is a number
-                        if isinstance(p_fake, str):
+                        if isinstance(p_fake, str) or p_fake_pct is None:
                             assistant_msg += f"""
 
 **Classification Result:**
@@ -1044,10 +1103,16 @@ with tab2:
     with col2:
         eval_detection_mode = st.radio(
             "Detection Mode",
-            options=["spai_assisted", "spai_standalone"],
-            format_func=lambda x: "SPAI + VLM" if x == "spai_assisted" else "SPAI Only",
+            options=["spai_assisted", "enhanced_3layer", "spai_standalone", "gapl_standalone", "compare_all"],
+            format_func=lambda x: {
+                "spai_assisted": "SPAI + VLM",
+                "enhanced_3layer": "Enhanced 4-Layer",
+                "spai_standalone": "SPAI Only",
+                "gapl_standalone": "GAPL Only",
+                "compare_all": "Compare All Methods"
+            }[x],
             index=0,
-            help="SPAI-assisted uses VLM reasoning, standalone is faster"
+            help="Compare All: Tests all detection combinations and shows accuracy comparison. Enhanced 4-Layer: Texture + GAPL + SPAI + VLM. SPAI + VLM: Spectral + VLM. SPAI/GAPL Only: Fast single-layer analysis."
         )
 
     with col3:
@@ -1066,11 +1131,22 @@ with tab2:
             help="Maximum resolution for SPAI analysis (higher = more accurate but slower)"
         )
 
-    # Choose which models to evaluate (disabled if SPAI standalone)
-    eval_vlm_disabled = (eval_detection_mode == "spai_standalone")
+    # Choose which models to evaluate (disabled if standalone modes only)
+    eval_vlm_disabled = (eval_detection_mode in ["spai_standalone", "gapl_standalone"])
 
-    if eval_vlm_disabled:
-        st.info("💡 VLM model selection is disabled in SPAI standalone mode. Only SPAI spectral analysis will be used.")
+    if eval_detection_mode == "compare_all":
+        st.info("💡 Compare All mode will test all detection methods: SPAI Only, GAPL Only, SPAI+VLM, and Enhanced 4-Layer (Texture+GAPL+SPAI+VLM).")
+        # Allow VLM model selection for compare_all mode
+        model_select = st.selectbox(
+            "Select VLM model to use for SPAI+VLM and Enhanced 4-Layer tests",
+            options=list(display_to_model_key.keys()),
+            index=0,
+            help="This model will be used for detection modes that require VLM (SPAI+VLM and Enhanced 4-Layer)"
+        )
+        models_to_run = [display_to_model_key[model_select]]
+    elif eval_vlm_disabled:
+        mode_name = "SPAI" if eval_detection_mode == "spai_standalone" else "GAPL"
+        st.info(f"💡 VLM model selection is disabled in {mode_name} standalone mode. Only {mode_name} analysis will be used.")
         models_to_run = [list(display_to_model_key.values())[0]]  # Default (won't be used)
     else:
         # Model selection (defaults to none)
@@ -1086,8 +1162,11 @@ with tab2:
         try:
             gt_df = load_ground_truth(gt_file)
 
+            # Extract basename from ground truth paths for matching (handles full paths in CSV)
+            gt_df["basename"] = gt_df["filename"].apply(lambda x: os.path.basename(x))
+
             # Optimize ground truth lookup by converting to set (O(1) instead of O(N))
-            gt_filenames = set(gt_df["filename"].values)
+            gt_filenames = set(gt_df["basename"].values)
 
             # Load cached SPAI detector ONCE for the entire evaluation
             spai_detector = load_spai_detector()
@@ -1095,101 +1174,334 @@ with tab2:
             per_model_results = {}  # model_key -> list[per image dicts]
             per_model_metrics = []  # list of metrics dicts with model info
 
-            total_steps = len(eval_images) * len(models_to_run)
-            progress_bar = st.progress(0)
-            step = 0
+            # If in "Compare All" mode, test all detection methods
+            if eval_detection_mode == "compare_all":
+                # Define all detection modes to compare
+                modes_to_compare = [
+                    ("spai_standalone", "SPAI Only (Spectral Analysis)"),
+                    ("gapl_standalone", "GAPL Only (Prototype Learning)"),
+                    ("spai_assisted", "SPAI + VLM"),
+                    ("enhanced_3layer", "Enhanced 4-Layer (Texture+GAPL+SPAI+VLM)")
+                ]
+                total_steps = len(eval_images) * len(modes_to_compare)
+                progress_bar = st.progress(0)
+                step = 0
 
-            for model_key in models_to_run:
+                model_key = models_to_run[0]  # Use first model for VLM-based modes
                 model_config = MODEL_CONFIGS[model_key]
-                model_display = model_config["display_name"]
 
-                # Show appropriate header based on detection mode
-                if eval_detection_mode == "spai_standalone":
-                    st.write(f"### Running SPAI Standalone (Spectral Analysis Only)")
-                else:
-                    st.write(f"### Running model: {model_display}")
+                st.write("### 🔬 Running Comprehensive Method Comparison")
+                st.write("Testing all detection methods on your dataset to determine which layers add value...")
 
-                per_image_results = []
+                for mode_key, mode_display in modes_to_compare:
+                    st.write(f"#### Testing: {mode_display}")
 
-                for i, img_file in enumerate(eval_images):
-                    img = Image.open(img_file)
-                    filename = img_file.name
+                    per_image_results = []
 
-                    if filename not in gt_filenames:
-                        st.warning(f"No ground truth for {filename}, skipping")
-                        continue
+                    for i, img_file in enumerate(eval_images):
+                        img = Image.open(img_file)
+                        filename = img_file.name
 
-                    actual = gt_df.loc[
-                        gt_df["filename"] == filename, "label"
-                    ].values[0]
+                        # Strip common prefixes (AIG_, REAL_, etc.) for matching
+                        filename_for_matching = filename
+                        for prefix in ["AIG_", "REAL_", "AI_Generated_", "Real_"]:
+                            if filename_for_matching.startswith(prefix):
+                                filename_for_matching = filename_for_matching[len(prefix):]
+                                break
 
-                    # Run detection once per image with cached SPAI detector
-                    res = analyze_single_image(
-                        image=img,
-                        model_config=model_config,
-                        context=eval_context,
-                        watermark_mode=watermark_mode,
-                        detection_mode=eval_detection_mode,
-                        spai_max_size=eval_spai_resolution if eval_spai_resolution != "Original" else None,
-                        spai_overlay_alpha=0.6,  # Default transparency
-                        spai_detector=spai_detector  # Use cached SPAI detector
-                    )
+                        # Try exact match first
+                        if filename_for_matching not in gt_filenames:
+                            # Try to find a match where the filename ends with a ground truth basename
+                            matched = False
+                            for gt_basename in gt_filenames:
+                                if filename_for_matching.endswith(gt_basename):
+                                    filename_for_matching = gt_basename
+                                    matched = True
+                                    break
 
-                    # Extract results
-                    predicted_label = res["classification"]  # "Real" or "AI Generated"
-                    confidence = res["confidence"]  # 0.0-1.0
-                    tier = res["tier"]  # "Authentic" / "Suspicious" / "Deepfake"
-                    analysis = res["analysis"]
-                    verdict_token = res["verdict_token"]  # "A" or "B"
+                            if not matched:
+                                continue
 
-                    correct = predicted_label == actual
+                        actual = gt_df.loc[
+                            gt_df["basename"] == filename_for_matching, "label"
+                        ].values[0]
 
-                    # Set model name appropriately for SPAI standalone vs assisted
-                    if eval_detection_mode == "spai_standalone":
-                        display_name = "SPAI Standalone (Spectral Analysis)"
-                    else:
-                        display_name = model_display
+                        # Run detection with current mode
+                        res = analyze_single_image(
+                            image=img,
+                            model_config=model_config,
+                            context=eval_context,
+                            watermark_mode=watermark_mode,
+                            detection_mode=mode_key,
+                            spai_max_size=eval_spai_resolution if eval_spai_resolution != "Original" else None,
+                            spai_overlay_alpha=0.6,
+                            spai_detector=spai_detector
+                        )
 
-                    per_image_results.append(
-                        {
-                            "model_key": model_key,
-                            "model_name": display_name,
+                        predicted_label = res["classification"]
+                        confidence = res["confidence"]
+                        tier = res["tier"]
+                        correct = predicted_label == actual
+
+                        per_image_results.append({
+                            "model_key": mode_key,
+                            "model_name": mode_display,
                             "filename": filename,
                             "actual_label": actual,
                             "predicted_label": predicted_label,
                             "correct": correct,
                             "confidence": confidence,
                             "tier": tier,
-                            "verdict_token": verdict_token,
-                            "analysis": analysis,
-                        }
-                    )
+                        })
 
-                    step += 1
-                    progress_bar.progress(step / total_steps)
+                        step += 1
+                        progress_bar.progress(step / total_steps)
 
-                if not per_image_results:
-                    st.warning(
-                        f"No valid images with ground truth were processed for model {model_display}."
-                    )
-                    continue
+                    if per_image_results:
+                        per_model_results[mode_key] = per_image_results
+                        y_true = [r["actual_label"] for r in per_image_results]
+                        y_pred = [r["predicted_label"] for r in per_image_results]
+                        metrics = calculate_metrics(y_true, y_pred)
+                        metrics["model_key"] = mode_key
+                        metrics["model_name"] = mode_display
+                        per_model_metrics.append(metrics)
 
-                per_model_results[model_key] = per_image_results
+                        st.success(f"✓ {mode_display}: {metrics['accuracy']:.1%} accuracy")
 
-                y_true = [r["actual_label"] for r in per_image_results]
-                y_pred = [r["predicted_label"] for r in per_image_results]
-                metrics = calculate_metrics(y_true, y_pred)
-                metrics["model_key"] = model_key
-                metrics["model_name"] = model_display
-                per_model_metrics.append(metrics)
+            else:
+                # Original single-mode evaluation
+                total_steps = len(eval_images) * len(models_to_run)
+                progress_bar = st.progress(0)
+                step = 0
+
+                for model_key in models_to_run:
+                    model_config = MODEL_CONFIGS[model_key]
+                    model_display = model_config["display_name"]
+
+                    # Show appropriate header based on detection mode
+                    if eval_detection_mode == "spai_standalone":
+                        st.write(f"### Running SPAI Standalone (Spectral Analysis Only)")
+                    elif eval_detection_mode == "gapl_standalone":
+                        st.write(f"### Running GAPL Standalone (Generator-Aware Prototype Learning)")
+                    elif eval_detection_mode == "enhanced_3layer":
+                        st.write(f"### Running Enhanced 4-Layer: {model_display} + Texture + GAPL")
+                    else:
+                        st.write(f"### Running model: {model_display}")
+
+                    per_image_results = []
+
+                    for i, img_file in enumerate(eval_images):
+                        img = Image.open(img_file)
+                        filename = img_file.name
+
+                        # Strip common prefixes (AIG_, REAL_, etc.) for matching
+                        filename_for_matching = filename
+                        for prefix in ["AIG_", "REAL_", "AI_Generated_", "Real_"]:
+                            if filename_for_matching.startswith(prefix):
+                                filename_for_matching = filename_for_matching[len(prefix):]
+                                break
+
+                        # Try exact match first
+                        if filename_for_matching not in gt_filenames:
+                            # Try to find a match where the filename ends with a ground truth basename
+                            # This handles cases like "Disaster_AI_Gen_DALL-E_01_01_0011.png" -> "01_01_0011.png"
+                            matched = False
+                            for gt_basename in gt_filenames:
+                                if filename_for_matching.endswith(gt_basename):
+                                    filename_for_matching = gt_basename
+                                    matched = True
+                                    break
+
+                            if not matched:
+                                st.warning(f"No ground truth for {filename}, skipping")
+                                continue
+
+                        actual = gt_df.loc[
+                            gt_df["basename"] == filename_for_matching, "label"
+                        ].values[0]
+
+                        # Run detection once per image with cached SPAI detector
+                        res = analyze_single_image(
+                            image=img,
+                            model_config=model_config,
+                            context=eval_context,
+                            watermark_mode=watermark_mode,
+                            detection_mode=eval_detection_mode,
+                            spai_max_size=eval_spai_resolution if eval_spai_resolution != "Original" else None,
+                            spai_overlay_alpha=0.6,  # Default transparency
+                            spai_detector=spai_detector  # Use cached SPAI detector
+                        )
+
+                        # Extract results
+                        predicted_label = res["classification"]  # "Real" or "AI Generated"
+                        confidence = res["confidence"]  # 0.0-1.0
+                        tier = res["tier"]  # "Authentic" / "Suspicious" / "Deepfake"
+                        analysis = res["analysis"]
+                        verdict_token = res["verdict_token"]  # "A" or "B"
+
+                        correct = predicted_label == actual
+
+                        # Set model name appropriately for standalone vs assisted modes
+                        if eval_detection_mode == "spai_standalone":
+                            display_name = "SPAI Standalone (Spectral Analysis)"
+                        elif eval_detection_mode == "gapl_standalone":
+                            display_name = "GAPL Standalone (Generator-Aware Prototype Learning)"
+                        else:
+                            display_name = model_display
+
+                        per_image_results.append(
+                            {
+                                "model_key": model_key,
+                                "model_name": display_name,
+                                "filename": filename,
+                                "actual_label": actual,
+                                "predicted_label": predicted_label,
+                                "correct": correct,
+                                "confidence": confidence,
+                                "tier": tier,
+                                "verdict_token": verdict_token,
+                                "texture_verdict": res.get("layer1_verdict", "N/A"),  # Layer 1: Texture
+                                "texture_confidence": res.get("layer1_confidence", "N/A"),
+                                "gapl_verdict": res.get("layer2_verdict", "N/A"),  # Layer 2: GAPL
+                                "gapl_confidence": res.get("layer2_confidence", "N/A"),
+                                "analysis": analysis,
+                            }
+                        )
+
+                        step += 1
+                        progress_bar.progress(step / total_steps)
+
+                    if not per_image_results:
+                        st.warning(
+                            f"No valid images with ground truth were processed for model {model_display}."
+                        )
+                        continue
+
+                    per_model_results[model_key] = per_image_results
+
+                    y_true = [r["actual_label"] for r in per_image_results]
+                    y_pred = [r["predicted_label"] for r in per_image_results]
+                    metrics = calculate_metrics(y_true, y_pred)
+                    metrics["model_key"] = model_key
+                    metrics["model_name"] = model_display
+                    per_model_metrics.append(metrics)
 
             if not per_model_metrics:
                 st.error("No models produced valid results.")
                 st.stop()
 
+            # Special comparison visualization for "Compare All" mode
+            if eval_detection_mode == "compare_all":
+                st.markdown("---")
+                st.header("🔬 Detection Method Comparison Results")
+                st.markdown("This analysis compares all detection methods to determine which layers contribute to accuracy.")
+
+                metrics_df = pd.DataFrame(per_model_metrics)
+
+                # Sort by accuracy descending
+                metrics_df_sorted = metrics_df.sort_values("accuracy", ascending=False)
+
+                # Create comparison visualization
+                st.subheader("📊 Performance Comparison")
+
+                # Accuracy comparison bar chart
+                import plotly.express as px
+                fig = px.bar(
+                    metrics_df_sorted,
+                    x="model_name",
+                    y=["accuracy", "precision", "recall", "f1"],
+                    title="Detection Method Performance Comparison",
+                    barmode="group",
+                    labels={"value": "Score", "variable": "Metric", "model_name": "Detection Method"}
+                )
+                fig.update_layout(xaxis_tickangle=-45, height=500)
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Detailed metrics table
+                st.subheader("📈 Detailed Metrics Comparison")
+                st.dataframe(
+                    metrics_df_sorted[[
+                        "model_name",
+                        "accuracy",
+                        "precision",
+                        "recall",
+                        "f1",
+                        "tp",
+                        "tn",
+                        "fp",
+                        "fn",
+                    ]],
+                    use_container_width=True
+                )
+
+                # Analysis and recommendations
+                st.subheader("💡 Analysis & Recommendations")
+
+                # Get metrics for each method
+                spai_only = metrics_df[metrics_df["model_key"] == "spai_standalone"]["accuracy"].values[0] if "spai_standalone" in metrics_df["model_key"].values else 0
+                gapl_only = metrics_df[metrics_df["model_key"] == "gapl_standalone"]["accuracy"].values[0] if "gapl_standalone" in metrics_df["model_key"].values else 0
+                spai_vlm = metrics_df[metrics_df["model_key"] == "spai_assisted"]["accuracy"].values[0] if "spai_assisted" in metrics_df["model_key"].values else 0
+                enhanced = metrics_df[metrics_df["model_key"] == "enhanced_3layer"]["accuracy"].values[0] if "enhanced_3layer" in metrics_df["model_key"].values else 0
+
+                # Calculate improvements
+                vlm_improvement = spai_vlm - spai_only if spai_only > 0 else 0
+                layers_improvement = enhanced - spai_vlm if spai_vlm > 0 else 0
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.metric(
+                        "Best Method",
+                        metrics_df_sorted.iloc[0]["model_name"],
+                        f"{metrics_df_sorted.iloc[0]['accuracy']:.1%} accuracy"
+                    )
+
+                with col2:
+                    st.metric(
+                        "VLM Contribution",
+                        f"{vlm_improvement:+.1%}",
+                        "vs SPAI alone"
+                    )
+
+                with col3:
+                    st.metric(
+                        "Texture+GAPL Contribution",
+                        f"{layers_improvement:+.1%}",
+                        "vs SPAI+VLM"
+                    )
+
+                # Generate recommendations
+                st.markdown("### 🎯 Recommendations")
+
+                recommendations = []
+
+                if enhanced > spai_vlm + 0.02:  # At least 2% improvement
+                    recommendations.append("✅ **Keep Texture & GAPL layers** - They provide significant accuracy improvement ({:.1%})".format(layers_improvement))
+                elif enhanced > spai_vlm + 0.005:  # 0.5-2% improvement
+                    recommendations.append("⚠️ **Texture & GAPL provide modest gains** - They improve accuracy by {:.1%}. Consider keeping if computational cost is acceptable.".format(layers_improvement))
+                else:
+                    recommendations.append("❌ **Consider removing Texture & GAPL** - They add minimal value ({:.1%} improvement) vs computational cost.".format(layers_improvement))
+
+                if spai_vlm > spai_only + 0.05:
+                    recommendations.append("✅ **VLM integration is highly effective** - Adds {:.1%} accuracy over SPAI alone".format(vlm_improvement))
+                elif spai_vlm > spai_only:
+                    recommendations.append("⚠️ **VLM provides modest improvement** - Adds {:.1%} accuracy. Consider cost vs benefit.".format(vlm_improvement))
+
+                if gapl_only > spai_only:
+                    recommendations.append("📊 **GAPL outperforms SPAI** when used standalone ({:.1%} vs {:.1%})".format(gapl_only, spai_only))
+
+                best_method = metrics_df_sorted.iloc[0]["model_name"]
+                recommendations.append(f"🏆 **Recommended configuration**: {best_method} ({metrics_df_sorted.iloc[0]['accuracy']:.1%} accuracy)")
+
+                for rec in recommendations:
+                    st.markdown(rec)
+
+                st.markdown("---")
+
             # summary metrics table
             metrics_df = pd.DataFrame(per_model_metrics)
-            st.subheader("📈 Evaluation Metrics by Model")
+            if eval_detection_mode != "compare_all":
+                st.subheader("📈 Evaluation Metrics by Model")
             st.dataframe(
                 metrics_df[
                     [
@@ -1233,6 +1545,10 @@ with tab2:
                         "tier",
                         "confidence",
                         "verdict_token",
+                        "texture_verdict",  # Layer 1: Texture forensics
+                        "texture_confidence",
+                        "gapl_verdict",  # Layer 2: GAPL
+                        "gapl_confidence",
                         "correct",
                         "analysis_preview",
                     ]

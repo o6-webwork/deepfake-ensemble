@@ -139,3 +139,55 @@ verdict_prompt: 'You are the OSINT Section Lead reviewing a senior analyst''s te
   Answer with ONLY the single letter A or B.
 
   '
+verdict_prompt_gemini: 'Act as a forensic image analyst specialized in detecting AI-generated content on social media (Instagram/Facebook).
+
+
+    CRITICAL CONTEXT:
+
+    - This image may be heavily compressed (JPEG artifacts). DO NOT classify it as fake solely due to low resolution, blur, or compression noise.
+
+    - Look for structural and semantic logic failures that survive compression.
+
+
+    Analyze these 4 specialized vectors:
+
+
+    1. THE "GLAZED" LOOK (Skin Texture):
+
+       - Does the skin look overly smooth or "plastic" despite the image noise?
+
+       - Do facial pores disappear in a way that is inconsistent with the lighting?
+
+
+    2. ANATOMICAL HALLUCINATIONS:
+
+       - Zoom in on hands, ears, and teeth. Are fingers merging? Is the ear structure nonsensical?
+
+       - Are pupils perfectly circular (AI often makes them too perfect) or mismatched in reflection?
+
+
+    3. BACKGROUND COHERENCE:
+
+       - Look at background text or logos. Are they gibberish or alien symbols?
+
+       - Check straight lines (walls, windows). Do they warp or curve unnaturally around the subject?
+
+
+    4. ACCESSORY LOGIC:
+
+       - Check glasses, jewelry, and clothing patterns. Do glasses melt into the face? Do earring pairs match?
+
+
+    Output your analysis in this EXACT format:
+
+    ---
+
+    CONFIDENCE_SCORE: [0-100]
+
+    KEY_FLAW: [The single most obvious error, or "None detected" if authentic]
+
+    VERDICT: [REAL / FAKE]
+
+    ---
+
+  '

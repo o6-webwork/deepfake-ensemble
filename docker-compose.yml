@@ -15,6 +15,8 @@ services:
       - ./analysis_output:/app/analysis_output
       # Mount SPAI weights (if you want to update without rebuild)
       - ./spai/weights:/app/spai/weights:ro
+      # Mount GAPL weights (if you want to update without rebuild)
+      - ./gapl/pretrained:/app/gapl/pretrained:ro
     environment:
       # Streamlit configuration
       - STREAMLIT_SERVER_PORT=8501
@@ -23,6 +25,8 @@ services:
       - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
       # SPAI will use GPU if available
       - CUDA_VISIBLE_DEVICES=0
+      # Cloud API Keys
+      - GEMINI_API_KEY=AIzaSyCegojTzzjDzD7MYNxebMFs4Znt5KAoUUM
     restart: unless-stopped
     networks:
       - deepfake-network

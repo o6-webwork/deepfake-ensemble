@@ -16,7 +16,9 @@ def extract_verdict_from_detector_output(result: Dict) -> Dict:
             - tier: str ("Authentic" / "Suspicious" / "Deepfake")
             - confidence: float (0.0-1.0, probability of being fake)
             - reasoning: str (Stage 2 VLM analysis)
-            - verdict: dict with token, confidence, raw_logits
+            - verdict_token: str ("A" or "B" from MCQ)
+            - layer1_texture: dict (Enhanced 4-Layer mode only)
+            - layer2_gapl: dict (Enhanced 4-Layer mode only)
 
     Returns:
         {
@@ -24,8 +26,15 @@ def extract_verdict_from_detector_output(result: Dict) -> Dict:
             "analysis": str,       # Full reasoning text
             "confidence": float,   # 0.0-1.0 confidence in the classification
             "tier": str,          # "Authentic" / "Suspicious" / "Deepfake"
-            "verdict_token": str  # "A" or "B" from MCQ
+            "verdict_token": str,  # "A" or "B" from MCQ
+            "layer1_verdict": str, # Layer 1 Texture verdict (if available)
+            "layer1_confidence": str, # Layer 1 confidence (if available)
+            "layer2_verdict": str, # Layer 2 GAPL verdict (if available)
+            "layer2_confidence": str  # Layer 2 confidence (if available)
         }
+
+    Note: Layer 3 (SPAI) and Layer 4 (VLM) are not separate dicts but are
+    integrated into the final tier/confidence/verdict_token values.
     """
     # Extract verdict information
     confidence_fake = result.get('confidence', 0.5)
@@ -49,12 +58,33 @@ def extract_verdict_from_detector_output(result: Dict) -> Dict:
     else:  # Suspicious or Deepfake
         classification = "AI Generated"
 
+    # Extract layer results if available (Enhanced 4-Layer mode)
+    # Note: detector.py returns layer1_texture and layer2_gapl (NOT layer1_physics)
+    layer1_texture = result.get('layer1_texture', {})
+    layer2_gapl = result.get('layer2_gapl', {})
+
+    # Layer 1: Texture forensics (PLGF, frequency, PLADA)
+    layer1_verdict = layer1_texture.get('combined_verdict', 'N/A')
+    layer1_confidence = layer1_texture.get('confidence', 'N/A')
+
+    # Layer 2: GAPL (Generator-Aware Prototype Learning)
+    layer2_verdict = layer2_gapl.get('combined_verdict', 'N/A')
+    layer2_confidence = layer2_gapl.get('confidence', 'N/A')
+
+    # Layer 3: SPAI (implicit - included in confidence score)
+    # Layer 4: VLM (implicit - included in tier/verdict)
+
     return {
         "classification": classification,
         "analysis": reasoning,
         "confidence": confidence_fake,
         "tier": tier,
-        "verdict_token": verdict_token
+        "verdict_token": verdict_token,
+        "layer1_verdict": layer1_verdict,  # Texture forensics
+        "layer1_confidence": layer1_confidence,
+        "layer2_verdict": layer2_verdict,  # GAPL
+        "layer2_confidence": layer2_confidence
+        # Note: layer3 (SPAI) and layer4 (VLM) are integrated into tier/confidence
     }
 
 

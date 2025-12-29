@@ -1,0 +1,122 @@
+{
+  "models": [
+    {
+      "id": "qwen3-vl-32b-local",
+      "display_name": "Qwen3 VL 32B (Local)",
+      "base_url": "http://100.64.0.3:8006/v1/",
+      "model_name": "Qwen3-VL-32B-Instruct",
+      "provider": "vllm",
+      "api_key": "dummy"
+    },
+    {
+      "id": "internvl2_5-8b-local",
+      "display_name": "InternVL 2.5 8B (Local)",
+      "base_url": "http://100.64.0.1:8000/v1/",
+      "model_name": "InternVL2_5-8B",
+      "provider": "vllm",
+      "api_key": "dummy"
+    },
+    {
+      "id": "internvl3_5-8b-local",
+      "display_name": "InternVL 3.5 8B (Local)",
+      "base_url": "http://localhost:1234/v1/",
+      "model_name": "opengvlab_internvl3_5-8b",
+      "provider": "vllm",
+      "api_key": "dummy"
+    },
+    {
+      "id": "minicpm-v-4_5-local",
+      "display_name": "MiniCPM-V 4.5 (Local)",
+      "base_url": "http://100.64.0.3:8001/v1/",
+      "model_name": "openbmb/MiniCPM-V-4_5",
+      "provider": "vllm",
+      "api_key": "dummy"
+    },
+    {
+      "id": "gpt-4o-cloud",
+      "display_name": "OpenAI GPT-4o (Cloud)",
+      "base_url": "https://api.openai.com/v1/",
+      "model_name": "gpt-4o",
+      "provider": "openai",
+      "api_key": "YOUR_OPENAI_API_KEY_HERE"
+    },
+    {
+      "id": "gpt-4o-mini-cloud",
+      "display_name": "OpenAI GPT-4o Mini (Cloud)",
+      "base_url": "https://api.openai.com/v1/",
+      "model_name": "gpt-4o-mini",
+      "provider": "openai",
+      "api_key": "YOUR_OPENAI_API_KEY_HERE"
+    },
+    {
+      "id": "claude-3-5-sonnet-cloud",
+      "display_name": "Claude 3.5 Sonnet (Cloud)",
+      "base_url": "",
+      "model_name": "claude-3-5-sonnet-20241022",
+      "provider": "anthropic",
+      "api_key": "YOUR_ANTHROPIC_API_KEY_HERE"
+    },
+    {
+      "id": "claude-3-5-haiku-cloud",
+      "display_name": "Claude 3.5 Haiku (Cloud)",
+      "base_url": "",
+      "model_name": "claude-3-5-haiku-20241022",
+      "provider": "anthropic",
+      "api_key": "YOUR_ANTHROPIC_API_KEY_HERE"
+    },
+    {
+      "id": "gemini-2-0-flash-cloud",
+      "display_name": "Gemini 2.0 Flash (Cloud)",
+      "base_url": "",
+      "model_name": "gemini-2.0-flash-exp",
+      "provider": "gemini",
+      "api_key": "YOUR_GEMINI_API_KEY_HERE"
+    },
+    {
+      "id": "gemini-1-5-pro-cloud",
+      "display_name": "Gemini 1.5 Pro (Cloud)",
+      "base_url": "",
+      "model_name": "gemini-1.5-pro-latest",
+      "provider": "gemini",
+      "api_key": "YOUR_GEMINI_API_KEY_HERE"
+    },
+    {
+      "id": "gemini-3-flash-cloud",
+      "display_name": "Gemini 3 Flash Preview (Cloud)",
+      "base_url": "",
+      "model_name": "gemini-3-flash-preview",
+      "provider": "gemini",
+      "api_key": "AIzaSyCegojTzzjDzD7MYNxebMFs4Znt5KAoUUM"
+    }
+  ],
+  "_comments": {
+    "description": "Model configuration file for OSINT Deepfake Detector",
+    "version": "1.0",
+    "fields": {
+      "id": "Unique identifier for the model (used internally)",
+      "display_name": "Human-readable name shown in UI dropdown",
+      "base_url": "API endpoint URL (for vLLM/OpenAI-compatible servers). Leave empty for Anthropic/Gemini.",
+      "model_name": "Model identifier used by the API",
+      "provider": "One of: 'vllm', 'openai', 'anthropic', 'gemini'",
+      "api_key": "API key for authentication. Use 'dummy' for local vLLM. Replace with actual key for cloud providers."
+    },
+    "usage": {
+      "1": "Copy this file to 'models.json' in the same directory",
+      "2": "Replace placeholder API keys with your actual keys",
+      "3": "Update base_url values to match your local vLLM deployments",
+      "4": "Upload via Streamlit UI or place in project root directory",
+      "5": "Restart application to load changes"
+    },
+    "adding_new_models": {
+      "description": "To add a new model, add a new object to the 'models' array with all required fields",
+      "example": {
+        "id": "my-custom-model",
+        "display_name": "My Custom VLM",
+        "base_url": "http://localhost:9000/v1/",
+        "model_name": "custom/my-vlm-model",
+        "provider": "vllm",
+        "api_key": "dummy"
+      }
+    }
+  }
+}
