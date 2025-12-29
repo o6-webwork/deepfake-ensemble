@@ -17,14 +17,15 @@ A production-ready AI-generated image detection pipeline combining **4 complemen
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/nexinspect-deepfake-detection.git
-cd nexinspect-deepfake-detection
+git clone https://github.com/o6-webwork/deepfake-ensemble.git
+cd deepfake-ensemble
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Download model weights
-python scripts/download_models.py
+# Download SPAI model weights (~2GB)
+# Visit: https://drive.google.com/file/d/1vvXmZqs6TVJdj8iF1oJ4L_fcgdQrp_YI/view
+# Place downloaded spai.pth in: spai/weights/spai.pth
 
 # Configure API keys (optional, for VLM modes)
 cp .env.example .env
@@ -276,15 +277,14 @@ pip install -r requirements.txt
 
 **4. Download Model Weights**
 
-SPAI model (~1.2GB):
-```bash
-python scripts/download_models.py --model spai
-```
+**SPAI Model** (~2GB - Required for all detection modes):
+1. Download from Google Drive: https://drive.google.com/file/d/1vvXmZqs6TVJdj8iF1oJ4L_fcgdQrp_YI/view
+2. Create directory: `mkdir -p spai/weights`
+3. Place file at: `spai/weights/spai.pth`
 
-GAPL model (~850MB):
-```bash
-python scripts/download_models.py --model gapl
-```
+**GAPL Model** (~850MB - Auto-loaded when using Enhanced 4-Layer or GAPL Only modes):
+- Weights are included in the `gapl/pretrained/` directory
+- No manual download required
 
 **5. Configure API Keys** (Optional - for VLM modes)
 
@@ -303,12 +303,7 @@ GOOGLE_API_KEY=your-google-key-here
 VLLM_BASE_URL=http://localhost:8000/v1
 ```
 
-**6. Verify Installation**
-```bash
-python scripts/verify_installation.py
-```
-
-**7. Launch Application**
+**6. Launch Application**
 ```bash
 streamlit run app.py
 ```
