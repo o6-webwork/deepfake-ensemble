@@ -5,7 +5,7 @@ A production-ready AI-generated image detection pipeline combining **4 complemen
 **Current Version**: 3.0.0
 **Status**: Production Ready
 **Accuracy**: Up to **90.7%** on diverse real-world datasets
-**Last Updated**: December 29, 2024
+**Last Updated**: December 29, 2025
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -279,8 +279,8 @@ Actual AI           21 (FN)        120 (TP)
 
 **1. Clone the Repository**
 ```bash
-git clone https://github.com/yourusername/nexinspect-deepfake-detection.git
-cd nexinspect-deepfake-detection
+git clone https://github.com/o6-webwork/deepfake-ensemble.git
+cd deepfake-ensemble
 ```
 
 **2. Create Virtual Environment** (Recommended)
@@ -680,9 +680,8 @@ MIT License - see [LICENSE](LICENSE) file
 
 ## 💬 Contact & Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/nexinspect/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/nexinspect/discussions)
-- **Email**: support@nexinspect.com
+- **Issues**: [GitHub Issues](https://github.com/o6-webwork/deepfake-ensemble/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/o6-webwork/deepfake-ensemble/discussions)
 
 ---
 
