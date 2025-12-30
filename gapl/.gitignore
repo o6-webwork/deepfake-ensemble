@@ -1,0 +1,5 @@
+# Ignore model checkpoints (too large for Git)
+pretrained/*.pt
+
+# Ignore training/evaluation assets
+assets/
