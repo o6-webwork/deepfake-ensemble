@@ -1456,6 +1456,7 @@ with tab3:
 
     if eval_images and gt_file and models_to_run and st.button("🚀 Run Evaluation"):
         try:
+            st.info("🔄 Starting evaluation...")
             gt_df = load_ground_truth(gt_file)
 
             # Extract basename from ground truth paths for matching (handles full paths in CSV)
@@ -1498,12 +1499,8 @@ with tab3:
                         img = Image.open(img_file)
                         filename = img_file.name
 
-                        # Strip common prefixes (AIG_, REAL_, etc.) for matching
+                        # Use filename as-is for matching (ground truth CSV contains prefixes)
                         filename_for_matching = filename
-                        for prefix in ["AIG_", "REAL_", "AI_Generated_", "Real_"]:
-                            if filename_for_matching.startswith(prefix):
-                                filename_for_matching = filename_for_matching[len(prefix):]
-                                break
 
                         # Try exact match first
                         if filename_for_matching not in gt_filenames:
@@ -1569,6 +1566,7 @@ with tab3:
                 # Original single-mode evaluation
                 total_steps = len(eval_images) * len(models_to_run)
                 progress_bar = st.progress(0)
+                status_text = st.empty()
                 step = 0
 
                 for model_key in models_to_run:
@@ -1582,7 +1580,9 @@ with tab3:
                         st.write(f"### Running GAPL Standalone (Generator-Aware Prototype Learning)")
                     elif eval_detection_mode == "enhanced_3layer":
                         st.write(f"### Running Enhanced 4-Layer: {model_display} + Texture + GAPL")
-                    else:
+                    elif eval_detection_mode == "forensics_3layer":
+                        st.write(f"### Running Forensics 3-Layer (Texture + GAPL + SPAI)")
+                    elif eval_detection_mode == "spai_assisted":
                         st.write(f"### Running model: {model_display}")
 
                     per_image_results = []
@@ -1591,12 +1591,8 @@ with tab3:
                         img = Image.open(img_file)
                         filename = img_file.name
 
-                        # Strip common prefixes (AIG_, REAL_, etc.) for matching
+                        # Use filename as-is for matching (ground truth CSV contains prefixes)
                         filename_for_matching = filename
-                        for prefix in ["AIG_", "REAL_", "AI_Generated_", "Real_"]:
-                            if filename_for_matching.startswith(prefix):
-                                filename_for_matching = filename_for_matching[len(prefix):]
-                                break
 
                         # Try exact match first
                         if filename_for_matching not in gt_filenames:

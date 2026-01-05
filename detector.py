@@ -1321,7 +1321,7 @@ LAYER 2 - GAPL (GENERATOR-AWARE):
 
         # No valid verdicts → Suspicious
         if not verdicts:
-            return "Suspicious", 0.5, False
+            return "Suspicious", 0.5, False, False
 
         # Check if VLM is corroborated by any forensic/spectral layer
         forensic_verdicts = {k: v for k, v in verdicts.items() if k in ["texture", "gapl", "spai"]}
