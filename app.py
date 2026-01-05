@@ -512,6 +512,15 @@ with tab1:
             help="Alpha blending: 0.0 = pure heatmap, 1.0 = pure original. Default 0.6 = 60% original + 40% heatmap."
         )
 
+        spai_temperature = st.slider(
+            "SPAI Temperature Calibration",
+            min_value=1.0,
+            max_value=3.0,
+            value=1.5,
+            step=0.1,
+            help="Temperature scaling for SPAI score calibration. Higher values (>1.5) reduce confidence/saturation. Lower values (<1.5) increase confidence. Default 1.5 for balanced calibration."
+        )
+
         # Watermark Mode Toggle (only for VLM modes)
         if detection_mode in ["spai_assisted", "enhanced_3layer"]:
             watermark_mode = st.selectbox(
@@ -804,9 +813,10 @@ Enable Debug Mode to see detailed SPAI scores.
                     watermark_mode=watermark_mode,
                     provider=config.get("provider", "vllm"),
                     detection_mode=detection_mode,
-                    spai_detector=spai_detector,  # Pass cached SPAI detector
+                    spai_detector=spai_detector,
                     spai_max_size=spai_resolution if spai_resolution != "Original" else None,
-                    spai_overlay_alpha=spai_overlay_alpha
+                    spai_overlay_alpha=spai_overlay_alpha,
+                    spai_temperature=spai_temperature
                 )
 
                 # Run detection with SPAI parameters
@@ -1178,6 +1188,15 @@ with tab2:
             format_func=lambda x: "None (use original)" if x is None else f"{x}px"
         )
 
+        batch_spai_temperature = st.slider(
+            "SPAI Temperature",
+            min_value=1.0,
+            max_value=3.0,
+            value=1.5,
+            step=0.1,
+            key="batch_spai_temperature"
+        )
+
     # Run Detection button
     if batch_images and st.button("🚀 Run Batch Detection", type="primary"):
         try:
@@ -1213,7 +1232,8 @@ with tab2:
                     detection_mode=batch_detection_mode,
                     spai_max_size=batch_spai_resolution,
                     spai_overlay_alpha=0.6,
-                    spai_detector=spai_detector
+                    spai_detector=spai_detector,
+                    spai_temperature=batch_spai_temperature
                 )
 
                 # Extract results
@@ -1392,6 +1412,15 @@ with tab3:
             help="Maximum resolution for SPAI analysis (higher = more accurate but slower)"
         )
 
+    eval_spai_temperature = st.slider(
+        "SPAI Temperature Calibration",
+        min_value=1.0,
+        max_value=3.0,
+        value=1.5,
+        step=0.1,
+        help="Temperature scaling for SPAI score calibration. Higher values reduce confidence."
+    )
+
     # Choose which models to evaluate (disabled if standalone modes only)
     eval_vlm_disabled = (eval_detection_mode in ["spai_standalone", "gapl_standalone"])
 
@@ -1496,7 +1525,8 @@ with tab3:
                             detection_mode=mode_key,
                             spai_max_size=eval_spai_resolution if eval_spai_resolution != "Original" else None,
                             spai_overlay_alpha=0.6,
-                            spai_detector=spai_detector
+                            spai_detector=spai_detector,
+                            spai_temperature=eval_spai_temperature
                         )
 
                         predicted_label = res["classification"]
@@ -1589,8 +1619,9 @@ with tab3:
                             watermark_mode=watermark_mode,
                             detection_mode=eval_detection_mode,
                             spai_max_size=eval_spai_resolution if eval_spai_resolution != "Original" else None,
-                            spai_overlay_alpha=0.6,  # Default transparency
-                            spai_detector=spai_detector  # Use cached SPAI detector
+                            spai_overlay_alpha=0.6,
+                            spai_detector=spai_detector,
+                            spai_temperature=eval_spai_temperature
                         )
 
                         # Extract results

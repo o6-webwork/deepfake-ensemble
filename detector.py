@@ -112,7 +112,8 @@ class OSINTDetector:
         spai_config_path: str = "spai/configs/spai.yaml",
         spai_weights_path: str = "spai/weights/spai.pth",
         spai_max_size: int = 1280,
-        spai_overlay_alpha: float = 0.6
+        spai_overlay_alpha: float = 0.6,
+        spai_temperature: float = 1.5
     ):
         """
         Initialize OSINT detector with SPAI integration.
@@ -131,6 +132,7 @@ class OSINTDetector:
             spai_weights_path: Path to SPAI pre-trained weights (only used if spai_detector is None)
             spai_max_size: Maximum resolution for SPAI analysis (512-2048 or None for original)
             spai_overlay_alpha: Transparency for heatmap blending (0.0-1.0, default 0.6)
+            spai_temperature: Temperature scaling for SPAI calibration (T>1 reduces confidence, default 1.5)
         """
         self.model_name = model_name
         self.context = context
@@ -139,6 +141,7 @@ class OSINTDetector:
         self.detection_mode = detection_mode
         self.spai_max_size = spai_max_size if spai_max_size != "Original" else None
         self.spai_overlay_alpha = spai_overlay_alpha
+        self.spai_temperature = spai_temperature
 
         # Provider capability flags
         # Logprobs only available for vLLM and OpenAI, not Gemini Developer API or Anthropic
@@ -262,7 +265,7 @@ class OSINTDetector:
 
             # Apply calibration to reduce saturation on domain-mismatched data
             raw_spai_score = spai_result["spai_score"]  # 0.0-1.0 (AI probability)
-            calibrated_score = self._calibrate_spai_score(raw_spai_score, temperature=1.5)
+            calibrated_score = self._calibrate_spai_score(raw_spai_score, temperature=self.spai_temperature)
             p_fake = calibrated_score  # Use calibrated score for confidence
 
             # Recalculate tier based on calibrated score (not raw SPAI tier)
@@ -504,7 +507,7 @@ class OSINTDetector:
 
             # Apply calibration to SPAI score
             raw_spai_score = spai_result["spai_score"]
-            calibrated_spai_score = self._calibrate_spai_score(raw_spai_score, temperature=1.5)
+            calibrated_spai_score = self._calibrate_spai_score(raw_spai_score, temperature=self.spai_temperature)
 
             # Build SPAI report combining metadata + spectral analysis + calibration
             spai_report = f"""{metadata_report}
@@ -567,7 +570,7 @@ OSINT Context: {self.context.capitalize()}
         # Stage 4: Disagreement gating (prevent error amplification)
         # Only apply if VLM is available
         raw_spai_score = spai_result["spai_score"]
-        calibrated_spai = self._calibrate_spai_score(raw_spai_score, temperature=1.5)
+        calibrated_spai = self._calibrate_spai_score(raw_spai_score, temperature=self.spai_temperature)
 
         if vlm_available:
             spai_says_fake = calibrated_spai > 0.7  # SPAI thinks fake (after calibration)
@@ -781,7 +784,7 @@ OSINT Context: {self.context.capitalize()}
 
             # Extract raw SPAI score for calibration and voting
             raw_spai_score = spai_result["spai_score"]
-            calibrated_spai_score = self._calibrate_spai_score(raw_spai_score, temperature=1.5)
+            calibrated_spai_score = self._calibrate_spai_score(raw_spai_score, temperature=self.spai_temperature)
 
             # Build ENHANCED SPAI report with Texture & GAPL results APPENDED
             # The VLM will receive ALL forensics data as context
