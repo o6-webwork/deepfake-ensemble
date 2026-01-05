@@ -236,6 +236,8 @@ class OSINTDetector:
             return self._detect_spai_assisted(image_bytes, debug)
         elif self.detection_mode == "enhanced_3layer":
             return self._detect_enhanced_3layer(image_bytes, debug)
+        elif self.detection_mode == "forensics_3layer":
+            return self._detect_forensics_3layer(image_bytes, debug)
         else:
             raise ValueError(f"Invalid detection_mode: {self.detection_mode}")
 
@@ -676,6 +678,215 @@ OSINT Context: {self.context.capitalize()}
                 "kv_cache_hit": req2_time < 0.5,  # Heuristic: <0.5s likely cached
                 "stage_0_time": stage0_time,
                 "stage_1_time": stage1_time,
+                "total_pipeline_time": total_time
+            }
+
+        return result
+
+    def _detect_forensics_3layer(self, image_bytes: bytes, debug: bool = False) -> Dict:
+        """
+        Forensics 3-layer mode: Texture + GAPL + SPAI (no VLM) with weighted voting.
+
+        Runs all forensic layers:
+        - Layer 1: Texture forensics (noise, DCT, DWT, etc.)
+        - Layer 2: GAPL (Generator-Aware Prototype Learning)
+        - Layer 3: SPAI spectral analysis
+
+        Final verdict determined by weighted voting across 3 forensic layers.
+        No VLM layer, making this faster than enhanced_3layer.
+
+        Args:
+            image_bytes: Original image bytes
+            debug: If True, include debug information
+
+        Returns:
+            Detection result dict
+        """
+        pipeline_start = time.time()
+
+        from texture_forensics import TextureForensicsPipeline
+        from gapl_forensics import GAPLForensicsPipeline
+
+        try:
+            metadata_dict, metadata_report, auto_fail = self._check_metadata(image_bytes)
+        except Exception as e:
+            return {
+                "tier": "Suspicious",
+                "confidence": 0.5,
+                "reasoning": f"Metadata check error: {str(e)}",
+                "spai_report": "Metadata check failed",
+                "metadata_auto_fail": False,
+                "raw_logits": {"real": -0.69, "fake": -0.69},
+                "verdict_token": None
+            }
+
+        if auto_fail:
+            result = {
+                "tier": "Deepfake",
+                "confidence": 1.0,
+                "reasoning": "AI generation tool detected in image metadata",
+                "spai_report": metadata_report,
+                "metadata_auto_fail": True,
+                "raw_logits": {"real": -100.0, "fake": 0.0},
+                "verdict_token": "B"
+            }
+            if debug:
+                result["debug"] = {
+                    "detection_mode": "forensics_3layer",
+                    "exif_data": metadata_dict,
+                    "total_pipeline_time": time.time() - pipeline_start
+                }
+            return result
+
+        pil_image = Image.open(io.BytesIO(image_bytes))
+
+        try:
+            layer1_start = time.time()
+            texture_pipeline = TextureForensicsPipeline()
+            layer1_result = texture_pipeline.analyze(pil_image)
+            layer1_time = time.time() - layer1_start
+        except Exception as e:
+            layer1_result = {
+                "combined_verdict": "Error",
+                "confidence": "low",
+                "explanation": f"Texture layer failed: {str(e)}"
+            }
+            layer1_time = 0.0
+
+        try:
+            layer2_start = time.time()
+            gapl_pipeline = GAPLForensicsPipeline()
+            layer2_result = gapl_pipeline.analyze(pil_image)
+            layer2_time = time.time() - layer2_start
+        except Exception as e:
+            layer2_result = {
+                "combined_verdict": "Uncertain",
+                "confidence": "low",
+                "explanation": f"GAPL layer failed: {str(e)}"
+            }
+            layer2_time = 0.0
+
+        try:
+            spai_start = time.time()
+            spai_result = self.spai.analyze(
+                image_bytes,
+                generate_heatmap=True,
+                alpha=self.spai_overlay_alpha,
+                max_size=self.spai_max_size
+            )
+            spai_time = time.time() - spai_start
+
+            raw_spai_score = spai_result["spai_score"]
+            calibrated_spai_score = self._calibrate_spai_score(raw_spai_score, temperature=self.spai_temperature)
+
+            spai_report = f"""{metadata_report}
+
+{spai_result['analysis_text']}
+
+SPAI Scores:
+- Raw spectral score: {raw_spai_score:.4f}
+- Calibrated score: {calibrated_spai_score:.4f}
+- Prediction: {spai_result['spai_prediction']}
+
+LAYER 1 - TEXTURE ANALYSIS:
+{layer1_result.get('explanation', 'N/A')}
+→ Texture Verdict: {layer1_result.get('combined_verdict', 'N/A')} (Confidence: {layer1_result.get('confidence', 'N/A')})
+
+LAYER 2 - GAPL (GENERATOR-AWARE):
+{layer2_result.get('explanation', 'N/A')}
+→ GAPL Verdict: {layer2_result.get('combined_verdict', 'N/A')} (Confidence: {layer2_result.get('confidence', 'N/A')})
+"""
+        except Exception as e:
+            return {
+                "tier": "Suspicious",
+                "confidence": 0.5,
+                "reasoning": f"SPAI analysis error: {str(e)}",
+                "spai_report": f"{metadata_report}\n\nError: Could not generate SPAI analysis",
+                "metadata_auto_fail": False,
+                "raw_logits": {"real": -0.69, "fake": -0.69},
+                "verdict_token": None
+            }
+
+        if calibrated_spai_score >= self.TIER_THRESHOLD_DEEPFAKE:
+            spai_tier = "Deepfake"
+        elif calibrated_spai_score > self.TIER_THRESHOLD_SUSPICIOUS_LOW:
+            spai_tier = "Suspicious"
+        else:
+            spai_tier = "Authentic"
+
+        spai_verdict_dict = {
+            "tier": spai_tier,
+            "confidence": calibrated_spai_score
+        }
+
+        final_tier, final_confidence, consensus, tie_detected = self._weighted_voting(
+            layer1_texture=layer1_result,
+            layer2_gapl=layer2_result,
+            spai_verdict=spai_verdict_dict,
+            vlm_verdict=None
+        )
+
+        total_time = time.time() - pipeline_start
+
+        layer_agreement = {
+            "texture": layer1_result.get("combined_verdict", "N/A"),
+            "gapl": layer2_result.get("combined_verdict", "N/A"),
+            "spai": spai_tier,
+            "final_weighted": final_tier,
+            "consensus": consensus,
+            "tie_detected": tie_detected
+        }
+
+        tie_warning = "\n- ⚠️ **TIE DETECTED**: Multiple verdicts tied - conservative verdict selected, confidence reduced by 15%" if tie_detected else ""
+
+        analysis = f"""**Detection Mode:** Forensics 3-Layer (Texture + GAPL + SPAI)
+
+**Final Verdict:** {final_tier}
+**AI Generated Probability:** {final_confidence:.3f}
+**Consensus:** {'✅ Yes' if consensus else '⚠️ Mixed Results'}
+
+### Layer-by-Layer Results:
+- **Texture Forensics (Layer 1):** {layer_agreement['texture']}
+- **GAPL Generator-Aware (Layer 2):** {layer_agreement['gapl']}
+- **SPAI Spectral Analysis (Layer 3):** {layer_agreement['spai']}
+- **Final Weighted Verdict:** {final_tier} (confidence: {final_confidence:.3f}, consensus: {consensus}){tie_warning}
+
+**Forensics Report:**
+{spai_report}
+"""
+
+        result = {
+            "tier": final_tier,
+            "confidence": final_confidence,
+            "reasoning": analysis,
+            "spai_report": spai_report,
+            "spai_heatmap_bytes": spai_result["heatmap_bytes"],
+            "metadata_auto_fail": False,
+            "raw_logits": {"real": None, "fake": None},
+            "verdict_token": None,
+            "layer1_texture": layer1_result,
+            "layer2_gapl": layer2_result,
+            "layer_agreement": layer_agreement
+        }
+
+        if debug:
+            result["debug"] = {
+                "detection_mode": "forensics_3layer",
+                "raw_spai_score": raw_spai_score,
+                "calibrated_spai_score": calibrated_spai_score,
+                "spai_prediction": spai_result["spai_prediction"],
+                "spai_tier": spai_tier,
+                "layer1_texture": layer1_result,
+                "layer2_gapl": layer2_result,
+                "weighted_voting_result": {
+                    "final_tier": final_tier,
+                    "final_confidence": final_confidence,
+                    "consensus": consensus,
+                    "tie_detected": tie_detected
+                },
+                "layer1_time": layer1_time,
+                "layer2_time": layer2_time,
+                "spai_time": spai_time,
                 "total_pipeline_time": total_time
             }
 

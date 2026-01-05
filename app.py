@@ -482,15 +482,16 @@ with tab1:
         # Detection Mode Selector
         detection_mode = st.radio(
             "🔬 Detection Mode",
-            options=["spai_assisted", "enhanced_3layer", "spai_standalone", "gapl_standalone"],
+            options=["spai_assisted", "enhanced_3layer", "forensics_3layer", "spai_standalone", "gapl_standalone"],
             format_func=lambda x: {
                 "spai_assisted": "SPAI + VLM (Comprehensive)",
                 "enhanced_3layer": "Enhanced 4-Layer (Texture + GAPL + SPAI + VLM)",
+                "forensics_3layer": "Forensics 3-Layer (Texture + GAPL + SPAI)",
                 "spai_standalone": "SPAI Only (Fast)",
                 "gapl_standalone": "GAPL Only (Generator-Aware)"
             }[x],
-            index=1,
-            help="Choose detection mode: SPAI (spectral analysis), GAPL (generator-aware prototypes), or combined modes with VLM reasoning."
+            index=2,
+            help="Choose detection mode: Forensics layers only (no VLM), SPAI spectral, GAPL prototypes, or combined with VLM reasoning."
         )
 
         # SPAI Configuration
@@ -537,17 +538,20 @@ with tab1:
             watermark_mode = "ignore"
             st.info("💡 Watermark analysis requires VLM mode. Switch to 'SPAI + VLM' or 'Enhanced 4-Layer' to enable.")
 
-    # VLM model selector (disabled in standalone modes)
-    vlm_disabled = (detection_mode in ["spai_standalone", "gapl_standalone"])
+    # VLM model selector (disabled in standalone and forensics modes)
+    vlm_disabled = (detection_mode in ["spai_standalone", "gapl_standalone", "forensics_3layer"])
 
     if vlm_disabled:
-        mode_name = "SPAI" if detection_mode == "spai_standalone" else "GAPL"
+        if detection_mode == "forensics_3layer":
+            mode_name = "Forensics 3-Layer"
+        else:
+            mode_name = "SPAI" if detection_mode == "spai_standalone" else "GAPL"
         st.selectbox(
             "Select detection model",
-            [f"(VLM disabled in {mode_name} standalone mode)"],
+            [f"(VLM disabled in {mode_name} mode)"],
             index=0,
             disabled=True,
-            help=f"VLM is not used in {mode_name} standalone mode. Switch to 'SPAI + VLM' or 'Enhanced 4-Layer' to enable model selection."
+            help=f"VLM is not used in {mode_name} mode. Switch to 'SPAI + VLM' or 'Enhanced 4-Layer' to enable model selection."
         )
         detect_model_key = list(display_to_model_key.values())[0]  # Default (won't be used)
     else:
@@ -1148,11 +1152,12 @@ with tab2:
         # Detection Mode
         batch_detection_mode = st.radio(
             "Detection Method",
-            options=["enhanced_3layer", "spai_standalone", "gapl_standalone", "spai_assisted"],
+            options=["enhanced_3layer", "forensics_3layer", "spai_standalone", "gapl_standalone", "spai_assisted"],
             index=0,
             key="batch_detection_mode",
             format_func=lambda x: {
                 "enhanced_3layer": "Enhanced 4-Layer (Texture + GAPL + SPAI + VLM) - Best accuracy",
+                "forensics_3layer": "Forensics 3-Layer (Texture + GAPL + SPAI) - No VLM",
                 "spai_standalone": "SPAI Only (Fast spectral analysis)",
                 "gapl_standalone": "GAPL Only (High precision)",
                 "spai_assisted": "SPAI + VLM (Balanced)"
@@ -1384,16 +1389,17 @@ with tab3:
     with col2:
         eval_detection_mode = st.radio(
             "Detection Mode",
-            options=["spai_assisted", "enhanced_3layer", "spai_standalone", "gapl_standalone", "compare_all"],
+            options=["spai_assisted", "enhanced_3layer", "forensics_3layer", "spai_standalone", "gapl_standalone", "compare_all"],
             format_func=lambda x: {
                 "spai_assisted": "SPAI + VLM",
                 "enhanced_3layer": "Enhanced 4-Layer",
+                "forensics_3layer": "Forensics 3-Layer",
                 "spai_standalone": "SPAI Only",
                 "gapl_standalone": "GAPL Only",
                 "compare_all": "Compare All Methods"
             }[x],
-            index=1,
-            help="Compare All: Tests all detection combinations and shows accuracy comparison. Enhanced 4-Layer: Texture + GAPL + SPAI + VLM. SPAI + VLM: Spectral + VLM. SPAI/GAPL Only: Fast single-layer analysis."
+            index=2,
+            help="Compare All: Tests all detection combinations. Enhanced 4-Layer: Texture + GAPL + SPAI + VLM. Forensics 3-Layer: Texture + GAPL + SPAI (no VLM). SPAI/GAPL Only: Single-layer analysis."
         )
 
     with col3:
@@ -1421,11 +1427,11 @@ with tab3:
         help="Temperature scaling for SPAI score calibration. Higher values reduce confidence."
     )
 
-    # Choose which models to evaluate (disabled if standalone modes only)
-    eval_vlm_disabled = (eval_detection_mode in ["spai_standalone", "gapl_standalone"])
+    # Choose which models to evaluate (disabled if standalone or forensics modes)
+    eval_vlm_disabled = (eval_detection_mode in ["spai_standalone", "gapl_standalone", "forensics_3layer"])
 
     if eval_detection_mode == "compare_all":
-        st.info("💡 Compare All mode will test all detection methods: SPAI Only, GAPL Only, SPAI+VLM, and Enhanced 4-Layer (Texture+GAPL+SPAI+VLM).")
+        st.info("💡 Compare All mode will test all detection methods: SPAI Only, GAPL Only, Forensics 3-Layer, SPAI+VLM, and Enhanced 4-Layer.")
         # Allow VLM model selection for compare_all mode
         model_select = st.selectbox(
             "Select VLM model to use for SPAI+VLM and Enhanced 4-Layer tests",
