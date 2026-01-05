@@ -1465,6 +1465,9 @@ with tab3:
             # Optimize ground truth lookup by converting to set (O(1) instead of O(N))
             gt_filenames = set(gt_df["basename"].values)
 
+            # Show diagnostic info
+            st.info(f"📊 Uploaded images: {len(eval_images)} | Ground truth entries: {len(gt_filenames)}")
+
             # Load cached SPAI detector ONCE for the entire evaluation
             spai_detector = load_spai_detector()
 
@@ -1494,6 +1497,7 @@ with tab3:
                     st.write(f"#### Testing: {mode_display}")
 
                     per_image_results = []
+                    skipped_images = []
 
                     for i, img_file in enumerate(eval_images):
                         img = Image.open(img_file)
@@ -1513,6 +1517,7 @@ with tab3:
                                     break
 
                             if not matched:
+                                skipped_images.append(filename)
                                 continue
 
                         actual = gt_df.loc[
@@ -1551,6 +1556,10 @@ with tab3:
                         step += 1
                         progress_bar.progress(step / total_steps)
 
+                    # Show evaluation summary for this mode
+                    if skipped_images:
+                        st.warning(f"⚠️ Skipped {len(skipped_images)} images. Evaluated: {len(per_image_results)}/{len(eval_images)}")
+
                     if per_image_results:
                         per_model_results[mode_key] = per_image_results
                         y_true = [r["actual_label"] for r in per_image_results]
@@ -1586,6 +1595,7 @@ with tab3:
                         st.write(f"### Running model: {model_display}")
 
                     per_image_results = []
+                    skipped_images = []
 
                     for i, img_file in enumerate(eval_images):
                         img = Image.open(img_file)
@@ -1606,7 +1616,7 @@ with tab3:
                                     break
 
                             if not matched:
-                                st.warning(f"No ground truth for {filename}, skipping")
+                                skipped_images.append(filename)
                                 continue
 
                         actual = gt_df.loc[
@@ -1665,6 +1675,14 @@ with tab3:
 
                         step += 1
                         progress_bar.progress(step / total_steps)
+
+                    # Show evaluation summary
+                    if skipped_images:
+                        st.warning(f"⚠️ Skipped {len(skipped_images)} images without ground truth entries. Evaluated: {len(per_image_results)}/{len(eval_images)}")
+                        with st.expander(f"Show skipped images ({len(skipped_images)})"):
+                            st.write(", ".join(skipped_images))
+                    else:
+                        st.success(f"✅ Successfully evaluated all {len(per_image_results)} images!")
 
                     if not per_image_results:
                         st.warning(
