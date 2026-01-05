@@ -82,7 +82,7 @@
 **Rationale:**
 - Highest overall performance (69.4% accuracy)
 - Best F1 score (72.5%)
-- Faster inference (~5s vs ~8s)
+- Faster inference
 - Simpler pipeline
 
 **Use cases:**

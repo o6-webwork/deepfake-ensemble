@@ -62,16 +62,16 @@ Visit `http://localhost:8501` to start detecting deepfakes!
 
 | Detection Mode | Accuracy | Precision | Recall | Speed | Use Case |
 |---|---|---|---|---|---|
-| **Enhanced 4-Layer** | **90.7%** | 89.0% | 97.9% | ~15s | High-stakes verification |
-| **GAPL Only** | **88.8%** | **97.6%** | 85.1% | ~3s | High-precision mode |
-| **SPAI Only** | 82.3% | 88.7% | 83.7% | ~50ms | Real-time screening |
-| **SPAI + VLM** | 77.2% | 77.1% | 92.9% | ~3s | Balanced mode |
+| **Enhanced 4-Layer** | **90.7%** | 89.0% | 97.9% | Comprehensive | High-stakes verification |
+| **GAPL Only** | **88.8%** | **97.6%** | 85.1% | Moderate | High-precision mode |
+| **SPAI Only** | 82.3% | 88.7% | 83.7% | Fast | Real-time screening |
+| **SPAI + VLM** | 77.2% | 77.1% | 92.9% | Moderate | Balanced mode |
 
 **Key Achievements:**
 - ✅ **97.9% Recall** - Only misses 3 out of 141 AI-generated images
 - ✅ **97.6% Precision (GAPL)** - Only 3 false positives in 74 real images
 - ✅ **90.7% Overall Accuracy** - Industry-leading multi-layer performance
-- ✅ **50ms Inference** - Real-time SPAI standalone mode
+- ✅ **Fast Inference** - Real-time SPAI standalone mode
 
 ---
 

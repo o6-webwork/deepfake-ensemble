@@ -323,11 +323,43 @@ Provide clear reasoning distinguishing localized editing from full synthesis."""
             combined_verdict = "Uncertain"
             combined_confidence = "low"
             consensus = False
+            tie_detected = False
         else:
             # Count votes by category
             verdict_counts = Counter(weighted_votes)
 
-            # Special handling for "AI Manipulated"
+            # Detect ties and apply deterministic tie-breaking
+            tie_detected = False
+            if len(verdict_counts) > 1:
+                # Get the maximum vote count
+                max_votes = verdict_counts.most_common(1)[0][1]
+                # Find all verdicts with max votes (potential tie)
+                tied_verdicts = [v for v, count in verdict_counts.items() if count == max_votes]
+
+                if len(tied_verdicts) > 1:
+                    tie_detected = True
+                    # Conservative tie-breaking priority (most conservative first):
+                    # 1. "AI Manipulated" - requires human review
+                    # 2. "AI Generated" - definitive fake
+                    # 3. "Real" - least conservative
+                    verdict_priority = ["AI Manipulated", "AI Generated", "Real"]
+
+                    # Select the highest priority verdict from tied ones
+                    for priority_verdict in verdict_priority:
+                        if priority_verdict in tied_verdicts:
+                            combined_verdict = priority_verdict
+                            break
+                    else:
+                        # Fallback (shouldn't happen with current verdicts)
+                        combined_verdict = tied_verdicts[0]
+                else:
+                    # No tie, normal winner
+                    combined_verdict = verdict_counts.most_common(1)[0][0]
+            else:
+                # Only one verdict type
+                combined_verdict = verdict_counts.most_common(1)[0][0]
+
+            # Special handling for "AI Manipulated" (can override tie-breaking)
             # If Layer 2 (texture) says "AI Manipulated" with medium+ confidence,
             # strongly prefer it (it's the only layer that can detect localized editing)
             if "texture" in verdicts and verdicts["texture"] == "AI Manipulated":
@@ -340,13 +372,6 @@ Provide clear reasoning distinguishing localized editing from full synthesis."""
                     # If Manipulated has any votes and isn't overwhelmingly outvoted
                     if manipulated_votes > 0 and manipulated_votes >= ai_gen_votes * 0.4:
                         combined_verdict = "AI Manipulated"
-                    else:
-                        combined_verdict = verdict_counts.most_common(1)[0][0]
-                else:
-                    combined_verdict = verdict_counts.most_common(1)[0][0]
-            else:
-                # Normal majority vote
-                combined_verdict = verdict_counts.most_common(1)[0][0]
 
             # Check consensus
             unique_verdicts = set(v for v in verdicts.values() if v not in ["Error", "Uncertain", "Inconclusive"])
@@ -367,6 +392,15 @@ Provide clear reasoning distinguishing localized editing from full synthesis."""
                     combined_confidence = "medium"
                 else:
                     combined_confidence = "low"
+
+            # Apply confidence penalty for ties (downgrade confidence level)
+            # Ties indicate weak consensus and should lower our certainty
+            if tie_detected:
+                if combined_confidence == "high":
+                    combined_confidence = "medium"
+                elif combined_confidence == "medium":
+                    combined_confidence = "low"
+                # "low" stays "low"
 
         # --- IMPROVEMENT 3: Probability-based scoring ---
         # Convert verdicts to probability-like scores (0=Real, 1=AI)
@@ -413,6 +447,10 @@ Provide clear reasoning distinguishing localized editing from full synthesis."""
         if combined_verdict == "AI Manipulated":
             explanations.append("⚠️ VERDICT: AI Manipulated preserved (Layer 2 detected splicing/editing)")
 
+        # Add tie warning if detected
+        if tie_detected:
+            explanations.append("⚠️ TIE DETECTED: Multiple verdicts tied - conservative verdict selected, confidence downgraded")
+
         explanation = "\n\n".join(explanations)
 
         return {
@@ -428,7 +466,8 @@ Provide clear reasoning distinguishing localized editing from full synthesis."""
                 "texture": verdicts.get("texture", "N/A"),
                 "vllm": verdicts.get("vllm", "N/A"),
                 "consensus": consensus,
-                "vllm_corroborated": vllm_corroborated
+                "vllm_corroborated": vllm_corroborated,
+                "tie_detected": tie_detected
             }
         }
 

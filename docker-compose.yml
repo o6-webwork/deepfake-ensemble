@@ -17,6 +17,8 @@ services:
       - ./spai/weights:/app/spai/weights:ro
       # Mount GAPL weights (if you want to update without rebuild)
       - ./gapl/pretrained:/app/gapl/pretrained:ro
+      # Mount HuggingFace cache for CLIP model (required by GAPL)
+      - ~/.cache/huggingface:/root/.cache/huggingface
     environment:
       # Streamlit configuration
       - STREAMLIT_SERVER_PORT=8501
@@ -96,8 +98,8 @@ networks:
 # Primary Service:
 # ----------------
 # deepfake-detector: Streamlit web UI with SPAI spectral analysis
-#   - SPAI standalone mode: Fast detection (~50ms) - No VLM needed
-#   - SPAI assisted mode: SPAI + VLM reasoning (~3s)
+#   - SPAI standalone mode: Fast detection - No VLM needed
+#   - SPAI assisted mode: SPAI + VLM reasoning
 #   - Port: 8501 (Web UI)
 #   - Memory: 4-8GB (PyTorch + SPAI model)
 #   - GPU: Optional but recommended for SPAI performance

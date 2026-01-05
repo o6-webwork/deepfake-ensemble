@@ -25,9 +25,9 @@ class OSINTDetector:
     SPAI-powered OSINT-specialized deepfake detector.
 
     Detection Modes:
-        - spai_standalone: SPAI spectral analysis only (fast, ~50ms)
-        - spai_assisted: SPAI + VLM comprehensive analysis (~3s)
-        - enhanced_3layer: Physics + Texture + VLM (comprehensive forensics, ~10-30s)
+        - spai_standalone: SPAI spectral analysis only (fast)
+        - spai_assisted: SPAI + VLM comprehensive analysis
+        - enhanced_3layer: Physics + Texture + VLM (comprehensive forensics)
 
     Architecture (spai_standalone):
         Stage 1: SPAI spectral analysis
@@ -240,7 +240,7 @@ class OSINTDetector:
         """
         SPAI standalone mode: Fast spectral analysis without VLM.
 
-        Returns results in ~50ms with SPAI spectral classification only.
+        Returns results quickly with SPAI spectral classification only.
 
         Args:
             image_bytes: Original image bytes
@@ -900,7 +900,7 @@ LAYER 2 - GAPL (GENERATOR-AWARE):
             vlm_tier = "N/A"
 
         # Perform weighted voting
-        final_tier, final_confidence, consensus = self._weighted_voting(
+        final_tier, final_confidence, consensus, tie_detected = self._weighted_voting(
             layer1_texture=layer1_result,
             layer2_gapl=layer2_result,
             spai_verdict=spai_verdict_dict,
@@ -927,12 +927,15 @@ LAYER 2 - GAPL (GENERATOR-AWARE):
         else:
             final_conf_display = str(final_confidence)
 
+        # Add tie warning if detected
+        tie_warning = "\n- ⚠️ **TIE DETECTED**: Multiple verdicts tied - conservative verdict selected, confidence reduced by 15%" if tie_detected else ""
+
         voting_explanation = f"\n\n**WEIGHTED VOTING RESULT**:\n" \
                             f"- Texture: {layer1_result.get('combined_verdict', 'N/A')} ({layer1_result.get('confidence', 'N/A')})\n" \
                             f"- GAPL: {layer2_result.get('combined_verdict', 'N/A')} ({layer2_result.get('confidence', 'N/A')})\n" \
                             f"- SPAI: {spai_tier} ({calibrated_spai_score:.3f})\n" \
                             f"- VLM: {vlm_display}\n" \
-                            f"- **Final Verdict: {final_tier}** (confidence: {final_conf_display}, consensus: {consensus})"
+                            f"- **Final Verdict: {final_tier}** (confidence: {final_conf_display}, consensus: {consensus}){tie_warning}"
 
         # Return result with layer details for UI
         result = {
@@ -954,7 +957,8 @@ LAYER 2 - GAPL (GENERATOR-AWARE):
                 "spai": spai_tier,
                 "vllm": vlm_tier,
                 "final_weighted": final_tier,
-                "consensus": consensus
+                "consensus": consensus,
+                "tie_detected": tie_detected
             }
         }
 
@@ -974,7 +978,8 @@ LAYER 2 - GAPL (GENERATOR-AWARE):
                 "weighted_voting_result": {
                     "final_tier": final_tier,
                     "final_confidence": final_confidence,
-                    "consensus": consensus
+                    "consensus": consensus,
+                    "tie_detected": tie_detected
                 },
                 "layer1_time": layer1_time,
                 "layer2_time": layer2_time,
@@ -997,7 +1002,7 @@ LAYER 2 - GAPL (GENERATOR-AWARE):
         layer2_gapl: Dict,
         spai_verdict: Dict,
         vlm_verdict: Dict
-    ) -> Tuple[str, float, bool]:
+    ) -> Tuple[str, float, bool, bool]:
         """
         Perform weighted voting across all detection layers.
 
@@ -1008,7 +1013,11 @@ LAYER 2 - GAPL (GENERATOR-AWARE):
             vlm_verdict: VLM semantic verdict {"tier": str, "confidence": float} or None if unavailable
 
         Returns:
-            (combined_tier, combined_confidence, consensus_flag)
+            (combined_tier, combined_confidence, consensus_flag, tie_detected)
+            - combined_tier: Final verdict tier (Authentic/Deepfake/Suspicious)
+            - combined_confidence: P(AI Generated) probability
+            - consensus_flag: True if all layers agreed
+            - tie_detected: True if voting resulted in a tie (confidence reduced by 15%)
         """
         # Collect verdicts with confidence weights
         verdicts = {}
@@ -1130,23 +1139,48 @@ LAYER 2 - GAPL (GENERATOR-AWARE):
         # Count votes
         verdict_counts = Counter(weighted_votes)
 
+        # Detect ties and apply deterministic tie-breaking
+        tie_detected = False
+        if len(verdict_counts) > 1:
+            # Get the maximum vote count
+            max_votes = verdict_counts.most_common(1)[0][1]
+            # Find all verdicts with max votes (potential tie)
+            tied_verdicts = [v for v, count in verdict_counts.items() if count == max_votes]
+
+            if len(tied_verdicts) > 1:
+                tie_detected = True
+                # Conservative tie-breaking priority (most conservative first):
+                # 1. "AI Manipulated" - requires human review
+                # 2. "AI Generated" - definitive fake
+                # 3. "Real" - least conservative
+                verdict_priority = ["AI Manipulated", "AI Generated", "Real"]
+
+                # Select the highest priority verdict from tied ones
+                for priority_verdict in verdict_priority:
+                    if priority_verdict in tied_verdicts:
+                        combined_verdict = priority_verdict
+                        break
+                else:
+                    # Fallback (shouldn't happen with current verdicts)
+                    combined_verdict = tied_verdicts[0]
+            else:
+                # No tie, normal winner
+                combined_verdict = verdict_counts.most_common(1)[0][0]
+        else:
+            # Only one verdict type
+            combined_verdict = verdict_counts.most_common(1)[0][0]
+
         # Special handling for "AI Manipulated" (only texture layer can detect this)
+        # This can override the tie-breaking result if there's strong support
         if "texture" in verdicts and verdicts["texture"] == "AI Manipulated":
             texture_conf = confidences.get("texture", "low")
             if texture_conf in ["high", "medium"]:
                 manipulated_votes = verdict_counts.get("AI Manipulated", 0)
                 ai_gen_votes = verdict_counts.get("AI Generated", 0)
 
-                # Prefer "AI Manipulated" if it has reasonable support
+                # Prefer "AI Manipulated" if it has reasonable support (40% threshold)
                 if manipulated_votes > 0 and manipulated_votes >= ai_gen_votes * 0.4:
                     combined_verdict = "AI Manipulated"
-                else:
-                    combined_verdict = verdict_counts.most_common(1)[0][0]
-            else:
-                combined_verdict = verdict_counts.most_common(1)[0][0]
-        else:
-            # Normal majority vote
-            combined_verdict = verdict_counts.most_common(1)[0][0]
 
         # Check consensus among all verdicts that participated in voting
         # Note: Error/Uncertain/Inconclusive were already filtered out when building verdicts dict
@@ -1172,6 +1206,11 @@ LAYER 2 - GAPL (GENERATOR-AWARE):
         else:
             avg_conf = 0.5
 
+        # Apply confidence penalty for ties (reduces confidence by 15%)
+        # Ties indicate weak consensus and should lower our certainty
+        if tie_detected:
+            avg_conf = avg_conf * 0.85
+
         # Convert avg_conf to P(AI Generated) for consistent interpretation
         # avg_conf represents "confidence in the voted verdict"
         # We need to convert it to "P(AI Generated)" for display
@@ -1194,8 +1233,8 @@ LAYER 2 - GAPL (GENERATOR-AWARE):
         else:
             final_tier = "Authentic"
 
-        # Return P(AI Generated) as the confidence value
-        return final_tier, p_ai_generated, consensus
+        # Return P(AI Generated) as the confidence value, plus tie flag
+        return final_tier, p_ai_generated, consensus, tie_detected
 
     def _calibrate_spai_score(self, raw_score: float, temperature: float = 1.5) -> float:
         """

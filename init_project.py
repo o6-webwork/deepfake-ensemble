@@ -290,18 +290,18 @@ SPAI Model:
 
 DETECTION MODES
 ------------------------------------------------------------------------------
-1. SPAI Standalone (~5s)
+1. SPAI Standalone
    • Fast spectral analysis only
    • No VLM required
    • Best for: Batch processing, quick screening
 
-2. SPAI + VLM Assisted (~8s)
+2. SPAI + VLM Assisted
    • SPAI spectral + VLM semantic reasoning
    • Two-stage inference with KV-cache
    • Best for: OSINT analysis, comprehensive reports
    • Accuracy: 79.2% (with v1.2.0 prompts)
 
-3. Enhanced 3-Layer (~10-30s)
+3. Enhanced 3-Layer
    • Physics + Texture + VLM analysis
    • Weighted voting system
    • Best for: High-stakes decisions, forensic verification
@@ -342,14 +342,14 @@ Generate Reports:
 PERFORMANCE BENCHMARKS
 ------------------------------------------------------------------------------
 SPAI Model Loading:
-  • First load: ~2 minutes (one-time per session)
-  • Subsequent: Cached (instant)
+  • First load: One-time initialization per session
+  • Subsequent: Cached
   • Memory: ~2GB VRAM
 
-Inference Times (GPU):
-  • SPAI Standalone: ~5s
-  • SPAI + VLM: ~8s (5s SPAI + 3s VLM)
-  • Enhanced 3-Layer: 10-30s (depends on forensic layers)
+Inference Performance (GPU):
+  • SPAI Standalone: Fast
+  • SPAI + VLM: Moderate
+  • Enhanced 3-Layer: Comprehensive (depends on forensic layers)
 
 Hardware Requirements:
   • GPU: NVIDIA with 8GB+ VRAM (RTX A5000 tested)

@@ -37,14 +37,42 @@ from spai_detector import SPAIDetector
 
 st.set_page_config(page_title="NexInspect", layout="wide", page_icon="🔍")
 
+# UI verdict mapping: Convert internal verdicts to simplified labels
+def simplify_verdict_for_ui(verdict: str) -> str:
+    """
+    Convert internal verdict labels to simplified UI display labels.
+    Internal logic uses 3 categories (Real, AI Manipulated, AI Generated) for voting,
+    but UI displays only 2 categories (Real, AI Generated) for clarity.
+
+    Args:
+        verdict: Internal verdict string
+
+    Returns:
+        Simplified verdict for UI display
+    """
+    verdict_mapping = {
+        # Internal verdicts → UI labels
+        "AI Manipulated": "AI Generated",
+        "AI Generated": "AI Generated",
+        "Deepfake": "AI Generated",
+        "Real": "Real",
+        "Authentic": "Real",
+        # Pass through unchanged
+        "N/A": "N/A",
+        "Uncertain": "Uncertain",
+        "Inconclusive": "Inconclusive",
+        "Error": "Error"
+    }
+    return verdict_mapping.get(verdict, verdict)
+
 # Cache SPAI model to avoid reloading on every inference (2GB+ model)
 @st.cache_resource
 def load_spai_detector():
     """
     Load and cache SPAI model (runs once per session).
 
-    This is critical for performance - the SPAI model is 2GB+ and takes
-    ~2 minutes to load from disk. Without caching, every analysis would
+    This is critical for performance - the SPAI model is 2GB+ and requires
+    initialization time to load from disk. Without caching, every analysis would
     reload the model.
 
     Returns:
@@ -456,12 +484,12 @@ with tab1:
             "🔬 Detection Mode",
             options=["spai_assisted", "enhanced_3layer", "spai_standalone", "gapl_standalone"],
             format_func=lambda x: {
-                "spai_assisted": "SPAI + VLM (Comprehensive, ~3s)",
-                "enhanced_3layer": "Enhanced 4-Layer (Texture + GAPL + SPAI + VLM, ~12-30s)",
-                "spai_standalone": "SPAI Only (Fast, ~50ms)",
-                "gapl_standalone": "GAPL Only (Generator-Aware, ~100-200ms)"
+                "spai_assisted": "SPAI + VLM (Comprehensive)",
+                "enhanced_3layer": "Enhanced 4-Layer (Texture + GAPL + SPAI + VLM)",
+                "spai_standalone": "SPAI Only (Fast)",
+                "gapl_standalone": "GAPL Only (Generator-Aware)"
             }[x],
-            index=0,
+            index=1,
             help="Choose detection mode: SPAI (spectral analysis), GAPL (generator-aware prototypes), or combined modes with VLM reasoning."
         )
 
@@ -560,7 +588,7 @@ with tab1:
     left_col, right_col = st.columns([1, 2], gap="large")
 
     uploaded_file = right_col.file_uploader(
-        "Upload image/video",
+        "Upload image",
         type=["jpg", "jpeg", "png", "mp4", "mov", "avi"],
         label_visibility="collapsed",
     )
@@ -691,7 +719,7 @@ Enable Debug Mode to see detailed SPAI scores.
                             st.error("⚠️ AI tool signature detected in metadata - Instant rejection")
 
         else:
-            st.info("Upload image/video to begin analysis.")
+            st.info("Upload image to begin analysis.")
         st.markdown("</div>", unsafe_allow_html=True)
 
     # chat panel
@@ -882,10 +910,10 @@ Enable Debug Mode to see detailed SPAI scores.
 
 ### 📊 Layer-by-Layer Results:
 
-**🎨 Texture Forensics (Layer 1):** {layer_agreement.get('texture', 'N/A')}
-**🧬 GAPL Generator-Aware (Layer 2):** {layer_agreement.get('gapl', 'N/A')}
-**📊 SPAI Spectral Analysis (Layer 3):** {layer_agreement.get('spai', 'N/A')}
-**🤖 VLM Semantic Reasoning (Layer 4):** {layer_agreement.get('vllm', 'N/A')}
+**🎨 Texture Forensics (Layer 1):** {simplify_verdict_for_ui(layer_agreement.get('texture', 'N/A'))}
+**🧬 GAPL Generator-Aware (Layer 2):** {simplify_verdict_for_ui(layer_agreement.get('gapl', 'N/A'))}
+**📊 SPAI Spectral Analysis (Layer 3):** {simplify_verdict_for_ui(layer_agreement.get('spai', 'N/A'))}
+**🤖 VLM Semantic Reasoning (Layer 4):** {simplify_verdict_for_ui(layer_agreement.get('vllm', 'N/A'))}
 
 ---
 
@@ -1208,9 +1236,9 @@ with tab2:
                     "confidence": confidence,
                     "tier": tier,
                     "verdict_token": verdict_token,
-                    "texture_verdict": layer1_verdict,
+                    "texture_verdict": simplify_verdict_for_ui(layer1_verdict),
                     "texture_confidence": layer1_confidence,
-                    "gapl_verdict": layer2_verdict,
+                    "gapl_verdict": simplify_verdict_for_ui(layer2_verdict),
                     "gapl_confidence": layer2_confidence,
                     "analysis": analysis,
                     "analysis_preview": analysis[:200] if analysis else "N/A"
@@ -1344,7 +1372,7 @@ with tab3:
                 "gapl_standalone": "GAPL Only",
                 "compare_all": "Compare All Methods"
             }[x],
-            index=0,
+            index=1,
             help="Compare All: Tests all detection combinations and shows accuracy comparison. Enhanced 4-Layer: Texture + GAPL + SPAI + VLM. SPAI + VLM: Spectral + VLM. SPAI/GAPL Only: Fast single-layer analysis."
         )
 
@@ -1593,9 +1621,9 @@ with tab3:
                                 "confidence": confidence,
                                 "tier": tier,
                                 "verdict_token": verdict_token,
-                                "texture_verdict": res.get("layer1_verdict", "N/A"),  # Layer 1: Texture
+                                "texture_verdict": simplify_verdict_for_ui(res.get("layer1_verdict", "N/A")),  # Layer 1: Texture
                                 "texture_confidence": res.get("layer1_confidence", "N/A"),
-                                "gapl_verdict": res.get("layer2_verdict", "N/A"),  # Layer 2: GAPL
+                                "gapl_verdict": simplify_verdict_for_ui(res.get("layer2_verdict", "N/A")),  # Layer 2: GAPL
                                 "gapl_confidence": res.get("layer2_confidence", "N/A"),
                                 "analysis": analysis,
                                 "analysis_preview": analysis[:200] if analysis else "N/A",  # Preview (first 200 chars)
