@@ -602,7 +602,7 @@ with tab1:
 
     uploaded_file = right_col.file_uploader(
         "Upload image",
-        type=["jpg", "jpeg", "png", "mp4", "mov", "avi"],
+        type=["jpg", "jpeg", "png", "webp", "mp4", "mov", "avi"],
         label_visibility="collapsed",
     )
 
@@ -1370,7 +1370,7 @@ with tab3:
 
     eval_images = st.file_uploader(
         "Upload images for evaluation",
-        type=["jpg", "jpeg", "png"],
+        type=["jpg", "jpeg", "png", "webp"],
         accept_multiple_files=True,
     )
     gt_file = st.file_uploader("Upload ground truth CSV", type=["csv"])
